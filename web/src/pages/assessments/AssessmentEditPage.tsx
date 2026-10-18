@@ -56,6 +56,7 @@ export default function AssessmentEditPage() {
         const a = res.data.assessment;
         const skills = (a.skills ?? []).map((skill: AssessmentSkill) => ({
           ...skill,
+          expected_level: skill.expected_level ?? 3,
           scope_include: skill.scope_include ?? "",
           scope_exclude: skill.scope_exclude ?? "",
           l1_anchor: skill.l1_anchor ?? "",

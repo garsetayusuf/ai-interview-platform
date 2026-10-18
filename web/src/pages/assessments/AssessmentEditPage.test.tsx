@@ -21,7 +21,7 @@ describe("AssessmentEditPage API null normalization", () => {
             skill_id: "skill-ruby",
             skill_label: "Ruby",
             is_custom: false,
-            expected_level: 3,
+            expected_level: null,
             display_order: 0,
             scope_include: null,
             scope_exclude: null,
