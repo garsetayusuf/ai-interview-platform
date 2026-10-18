@@ -97,7 +97,7 @@ async function renderWith(vacancies: Vacancy[]) {
 }
 
 function runButton() {
-    return screen.getByRole("button", { name: /Run Fit\/Gap Analysis/ });
+    return screen.getByRole("button", { name: /Generate Fit\/Gap Analysis/ });
 }
 
 function compareSelect() {
@@ -164,7 +164,7 @@ describe("PortfolioPage run fit/gap control", () => {
         await selectVacancy("Backend Engineer");
 
         const openExisting = await screen.findByRole("button", { name: "Open existing report" });
-        expect(within(screen.getByTestId("portfolio-action-bar")).getByRole("status")).toHaveTextContent("Report generated");
+        expect(within(screen.getByTestId("portfolio-action-bar")).getByRole("status")).toHaveTextContent("Report available");
 
         fireEvent.click(openExisting);
         expect(navigateSpy).toHaveBeenCalledWith("/assessments/1/sessions/2/fitgap/2");

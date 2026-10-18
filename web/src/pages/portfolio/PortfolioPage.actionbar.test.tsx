@@ -93,11 +93,11 @@ describe("PortfolioPage action bar", () => {
         expect(within(bar).getByRole("link", { name: "Transcript" })).toBeInTheDocument();
         expect(within(bar).getByRole("button", { name: "PDF" })).toBeInTheDocument();
         expect(within(bar).getByRole("button", { name: "JSON" })).toBeInTheDocument();
-        expect(within(bar).getByRole("button", { name: /Run Fit\/Gap Analysis/ })).toBeInTheDocument();
+        expect(within(bar).getByRole("button", { name: /Generate Fit\/Gap Analysis/ })).toBeInTheDocument();
 
         // The actions exist once: they were moved, not duplicated.
         expect(screen.getAllByRole("link", { name: "Transcript" })).toHaveLength(1);
-        expect(screen.getAllByRole("button", { name: /Run Fit\/Gap Analysis/ })).toHaveLength(1);
+        expect(screen.getAllByRole("button", { name: /Generate Fit\/Gap Analysis/ })).toHaveLength(1);
     });
 
     it("reaches the same actions from the mobile actions sheet", async () => {
@@ -113,7 +113,7 @@ describe("PortfolioPage action bar", () => {
         expect(within(sheet).getByRole("link", { name: "Transcript" })).toBeInTheDocument();
         expect(within(sheet).getByRole("button", { name: "PDF" })).toBeInTheDocument();
         expect(within(sheet).getByRole("button", { name: "JSON" })).toBeInTheDocument();
-        expect(within(sheet).getByRole("button", { name: /Run Fit\/Gap Analysis/ })).toBeInTheDocument();
+        expect(within(sheet).getByRole("button", { name: /Generate Fit\/Gap Analysis/ })).toBeInTheDocument();
     });
 
     it("labels the back affordance and the compare-against control", async () => {
@@ -121,7 +121,7 @@ describe("PortfolioPage action bar", () => {
 
         const bar = screen.getByTestId("portfolio-action-bar");
 
-        expect(within(bar).getByRole("link", { name: "Back to invitations" })).toBeInTheDocument();
+        expect(within(bar).getByRole("link", { name: "Back to assessment" })).toBeInTheDocument();
         expect(
             within(bar).getByRole("combobox", { name: "Compare against vacancy, 1 available" })
         ).toBeInTheDocument();
@@ -212,7 +212,7 @@ describe("PortfolioPage page states", () => {
 
         expect(await screen.findByText("No skills were captured for this session.")).toBeInTheDocument();
         expect(screen.queryByTestId("portfolio-action-bar")).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: /Run Fit\/Gap Analysis/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Generate Fit\/Gap Analysis/ })).not.toBeInTheDocument();
     });
 
     it("renders the captured skills once the portfolio is complete", async () => {

@@ -59,7 +59,7 @@ describe("AssessmentListPage", () => {
         card.focus();
         fireEvent.keyDown(card, { key: "Enter" });
 
-        expect(navigateSpy).toHaveBeenCalledWith("/assessments/2/invite");
+        expect(navigateSpy).toHaveBeenCalledWith("/assessments/2");
     });
 
     it("opens an assessment with the space key", async () => {
@@ -68,7 +68,7 @@ describe("AssessmentListPage", () => {
         const card = screen.getByRole("button", { name: "Open Data Analyst Screen" });
         fireEvent.keyDown(card, { key: " " });
 
-        expect(navigateSpy).toHaveBeenCalledWith("/assessments/3/invite");
+        expect(navigateSpy).toHaveBeenCalledWith("/assessments/3");
     });
 
     it("surfaces a load failure as an alert", async () => {

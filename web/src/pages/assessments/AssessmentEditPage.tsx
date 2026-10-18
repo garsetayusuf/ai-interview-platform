@@ -119,7 +119,7 @@ export default function AssessmentEditPage() {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Link to="/assessments" aria-label="Back to assessments" className="text-muted-foreground hover:text-foreground">
+          <Link to={`/assessments/${id}`} aria-label="Back to assessment" className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <span className="text-sm font-medium">Edit Assessment</span>
@@ -138,7 +138,7 @@ export default function AssessmentEditPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        <Link to="/assessments" aria-label="Back to assessments" className="text-muted-foreground hover:text-foreground">
+        <Link to={`/assessments/${id}`} aria-label="Back to assessment" className="text-muted-foreground hover:text-foreground">
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <span className="text-sm text-muted-foreground">Back</span>
@@ -200,7 +200,7 @@ export default function AssessmentEditPage() {
         {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
 
         <div className="sticky bottom-0 flex flex-wrap items-center justify-end gap-2 border-t bg-background py-3">
-          <Button type="button" variant="outline" onClick={() => navigate(`/assessments/${id}/invite`)}>Cancel</Button>
+          <Button type="button" variant="outline" onClick={() => navigate(`/assessments/${id}`)}>Cancel</Button>
           <Button type="submit" disabled={submitting}>
             {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Save Changes

@@ -224,8 +224,8 @@ export default function PortfolioPage() {
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-2">
           <Link
-            to={`/assessments/${id}/invite`}
-            aria-label="Back to invitations"
+            to={`/assessments/${id}`}
+            aria-label="Back to assessment"
             className="text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -263,7 +263,7 @@ export default function PortfolioPage() {
         : checkingReport
           ? "Checking for an existing report…"
           : existingReport
-            ? `Report generated ${formatTimestamp(existingReport.generated_at) ?? "earlier"}. Run again to refresh it.`
+            ? `Report available · generated ${formatTimestamp(existingReport.generated_at) ?? "earlier"}.`
             : "A comparison will be generated when you open the report.";
 
   const actions = (stacked: boolean) => {
@@ -376,21 +376,23 @@ export default function PortfolioPage() {
                     Open existing report
                   </Button>
                 )}
-                <Button
-                  size="sm"
-                  className={stackedClass}
-                  onClick={handleRunFitGap}
-                  disabled={!selectedVacancy || isNavigating || generating}
-                >
-                  {generating ? (
-                    "Generating…"
-                  ) : (
-                    <>
-                      Run Fit/Gap Analysis
-                      <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                    </>
-                  )}
-                </Button>
+                {!existingReport && (
+                  <Button
+                    size="sm"
+                    className={stackedClass}
+                    onClick={handleRunFitGap}
+                    disabled={!selectedVacancy || isNavigating || generating}
+                  >
+                    {generating ? (
+                      "Generating…"
+                    ) : (
+                      <>
+                        Generate Fit/Gap Analysis
+                        <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
             </div>
             <p
@@ -415,8 +417,8 @@ export default function PortfolioPage() {
       >
         <div className="flex items-start gap-2">
           <Link
-            to={`/assessments/${id}/invite`}
-            aria-label="Back to invitations"
+            to={`/assessments/${id}`}
+            aria-label="Back to assessment"
             className="mt-0.5 text-muted-foreground hover:text-foreground"
           >
             <ArrowLeft className="h-4 w-4" />

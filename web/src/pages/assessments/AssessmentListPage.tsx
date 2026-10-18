@@ -79,11 +79,11 @@ export default function AssessmentListPage() {
               tabIndex={0}
               aria-label={`Open ${a.name}`}
               className="cursor-pointer hover:border-primary/40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              onClick={() => navigate(`/assessments/${a.id}/invite`)}
+              onClick={() => navigate(`/assessments/${a.id}`)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
-                  navigate(`/assessments/${a.id}/invite`);
+                  navigate(`/assessments/${a.id}`);
                 }
               }}
             >
