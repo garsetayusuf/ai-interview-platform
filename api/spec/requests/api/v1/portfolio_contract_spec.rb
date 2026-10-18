@@ -88,5 +88,31 @@ RSpec.describe 'Portfolio and fit-gap API contracts', type: :request do
 
       expect(response).to have_http_status(:not_found)
     end
+
+    it 'keeps the current report readable while a replacement is queued' do
+      portfolio.update!(generation_status: 'complete')
+      report = create(
+        :fit_gap_report,
+        portfolio:,
+        vacancy:,
+        skill_comparisons: [{ 'skill_label' => 'Ruby', 'result' => 'gap' }],
+        generated_at: 1.hour.ago
+      )
+
+      post "/api/v1/portfolios/#{portfolio.id}/regenerate_fitgap",
+           params:  { vacancy_id: vacancy.id },
+           headers: headers,
+           as:      :json
+
+      expect(response).to have_http_status(:accepted)
+      expect(
+        FitGapReport.find_by(portfolio_id: portfolio.id, vacancy_id: vacancy.id)
+      ).to eq(report)
+
+      get "/api/v1/portfolios/#{portfolio.id}/fitgap/#{vacancy.id}", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body).fetch('report').fetch('generated_at')).to be_present
+    end
   end
 end
