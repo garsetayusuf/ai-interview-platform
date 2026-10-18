@@ -152,8 +152,13 @@ export function useAudioWebSocket({
 
   useEffect(() => {
     return () => {
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      clearTimeout(reconnectTimerRef.current);
+      // Unmount is terminal for this hook; closing the socket otherwise fires
+      // onclose and schedules a reconnect against an unmounted component.
+      reconnectAttemptsRef.current = RECONNECT_DELAYS.length;
+      sessionEndedRef.current = true;
       wsRef.current?.close();
+      wsRef.current = null;
     };
   }, []);
 
