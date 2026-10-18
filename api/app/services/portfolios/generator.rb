@@ -30,6 +30,10 @@ module Portfolios
 
       Rails.logger.info("[N10] Portfolio generated for session #{@session.id}")
       portfolio
+    rescue InvalidResponse => e
+      portfolio&.update!(generation_status: 'failed', generation_error: e.message)
+      Rails.logger.warn("[N10] Portfolio generation rejected: #{e.message}")
+      portfolio
     rescue => e
       portfolio&.update!(generation_status: 'failed', generation_error: e.message)
       Rails.logger.error("[N10] Portfolio generation failed for session #{@session.id}: #{e.class} #{e.message}")
@@ -148,9 +152,9 @@ module Portfolios
     end
 
     def save_skills(portfolio, response)
-      data = response.is_a?(Hash) ? response : JSON.parse(response)
+      data = ResponseValidator.new(response).call
 
-      # Destroy existing skills (idempotent regeneration)
+      # Validation completes before replacement so malformed output cannot erase a trusted portfolio.
       portfolio.portfolio_skills.destroy_all
 
       (data['configured_skills'] || []).each do |skill_data|
@@ -158,7 +162,7 @@ module Portfolios
           skill_id:           skill_data['skill_id'],
           skill_label:        skill_data['skill_label'],
           is_discovered:      false,
-          ai_level:           skill_data['level'].to_i.clamp(1, 5),
+          ai_level:           skill_data['level'],
           ai_confidence:      skill_data['confidence'],
           evidence:           Array(skill_data['evidence']).first(3),
           competency_summary: skill_data['competency_summary']
@@ -170,7 +174,7 @@ module Portfolios
           skill_id:           nil,
           skill_label:        skill_data['skill_label'],
           is_discovered:      true,
-          ai_level:           skill_data['level'].to_i.clamp(1, 5),
+          ai_level:           skill_data['level'],
           ai_confidence:      skill_data['confidence'],
           evidence:           Array(skill_data['evidence']).first(3),
           competency_summary: skill_data['competency_summary']

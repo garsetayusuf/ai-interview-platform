@@ -42,27 +42,36 @@ module FitGap
 
       comparisons = vacancy_skills.map do |label, vacancy_skill|
         portfolio_skill = find_portfolio_skill(portfolio_skills, label, vacancy_skill.skill_id)
+        required_level = vacancy_skill.expected_level
+        is_override = portfolio_skill&.dig(:overridden) || false
+        candidate_level_source =
+          if portfolio_skill
+            is_override ? 'assessor_override' : 'ai'
+          end
 
         if portfolio_skill
-          candidate_level  = portfolio_skill[:effective_level]
-          expected_level   = vacancy_skill.expected_level
-          delta            = candidate_level - expected_level
-          result           = delta == 0 ? 'match' : (delta > 0 ? 'exceed' : 'gap')
+          candidate_level = portfolio_skill[:effective_level]
+          delta = candidate_level - required_level
+          result = delta == 0 ? 'match' : (delta > 0 ? 'exceed' : 'gap')
+          assessment_state = 'assessed'
         else
           candidate_level = nil
-          expected_level  = vacancy_skill.expected_level
-          delta           = nil
-          result          = 'not_assessed'
+          delta = nil
+          result = 'not_assessed'
+          assessment_state = 'not_assessed'
         end
 
         {
-          skill_label:     label,
-          skill_id:        vacancy_skill.skill_id,
-          candidate_level: candidate_level,
-          expected_level:  expected_level,
-          result:          result,
-          delta:           delta,
-          confidence:      portfolio_skill&.dig(:confidence)
+          skill_label: label,
+          skill_id: vacancy_skill.skill_id,
+          required_level:,
+          candidate_level:,
+          result:,
+          delta:,
+          confidence: portfolio_skill&.dig(:confidence),
+          assessment_state:,
+          is_override:,
+          candidate_level_source:
         }
       end
 
@@ -122,8 +131,8 @@ module FitGap
 
         SKILL COMPARISON RESULTS:
         - Matches (#{matches.count}): #{matches.map { |c| "#{c[:skill_label]} (L#{c[:candidate_level]})" }.join(', ')}
-        - Gaps (#{gaps.count}): #{gaps.map { |c| "#{c[:skill_label]}: candidate L#{c[:candidate_level]} vs expected L#{c[:expected_level]} (delta #{c[:delta]})" }.join(', ')}
-        - Exceeds (#{exceeds.count}): #{exceeds.map { |c| "#{c[:skill_label]}: candidate L#{c[:candidate_level]} vs expected L#{c[:expected_level]} (+#{c[:delta]})" }.join(', ')}
+        - Gaps (#{gaps.count}): #{gaps.map { |c| "#{c[:skill_label]}: candidate L#{c[:candidate_level]} vs required L#{c[:required_level]} (delta #{c[:delta]})" }.join(', ')}
+        - Exceeds (#{exceeds.count}): #{exceeds.map { |c| "#{c[:skill_label]}: candidate L#{c[:candidate_level]} vs required L#{c[:required_level]} (+#{c[:delta]})" }.join(', ')}
         - Not assessed (#{not_assessed.count}): #{not_assessed.map { |c| c[:skill_label] }.join(', ')}
 
         Write two short narrative paragraphs:

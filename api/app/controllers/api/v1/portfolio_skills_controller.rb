@@ -48,8 +48,10 @@ module Api
       end
 
       def set_portfolio_skill
-        @portfolio_skill = PortfolioSkill.joins(:portfolio)
-                                         .find(params[:id])
+        @portfolio_skill = Authorization::PortfolioAccess.find_portfolio_skill!(
+          params[:id],
+          tenant_id: current_tenant_id
+        )
       rescue ActiveRecord::RecordNotFound
         json_error("Portfolio skill not found", :not_found)
       end

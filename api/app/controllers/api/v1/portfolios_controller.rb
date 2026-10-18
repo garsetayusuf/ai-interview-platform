@@ -58,7 +58,7 @@ module Api
         end
 
         if format == "pdf"
-          vacancy = params[:vacancy_id].present? ? Vacancy.find_by(id: params[:vacancy_id]) : nil
+          vacancy = params[:vacancy_id].present? ? Authorization::PortfolioAccess.find_vacancy!(params[:vacancy_id], tenant_id: current_tenant_id) : nil
           pdf_data = Exports::PdfGenerator.new(portfolio: @portfolio, vacancy: vacancy).call
 
           return send_data pdf_data,
@@ -72,20 +72,21 @@ module Api
         export_data = build_export_json(@portfolio, vacancy_id)
 
         send_data export_data.to_json,
-                  filename:    "portfolio-#{@portfolio.id}.json",
-                  type:        "application/json",
+                  filename: "portfolio-#{@portfolio.id}.json",
+                  type: "application/json",
                   disposition: "attachment"
+      rescue ActiveRecord::RecordNotFound
+        json_error("Portfolio not found", :not_found)
       end
 
       # POST /api/v1/portfolios/:id/regenerate_fitgap
       def regenerate_fitgap
-        portfolio  = Portfolio.find(params[:id])
+        portfolio  = Authorization::PortfolioAccess.find_portfolio!(params[:id], tenant_id: current_tenant_id)
         vacancy_id = params[:vacancy_id]
 
         return json_error("vacancy_id is required", :unprocessable_entity) if vacancy_id.blank?
 
-        vacancy = Vacancy.find_by(id: vacancy_id)
-        return json_error("Vacancy not found", :not_found) unless vacancy
+        vacancy = Authorization::PortfolioAccess.find_vacancy!(vacancy_id, tenant_id: current_tenant_id)
 
         unless portfolio.complete?
           return json_error("Portfolio is not ready (status: #{portfolio.generation_status})", :unprocessable_entity)
@@ -101,20 +102,23 @@ module Api
 
       # POST /api/v1/portfolios/:id/fitgap
       def fitgap
-        portfolio = Portfolio.find(params[:id])
+        portfolio = Authorization::PortfolioAccess.find_portfolio!(params[:id], tenant_id: current_tenant_id)
 
         vacancy_id = params.dig(:fitgap, :vacancy_id) || params[:vacancy_id]
         return json_error("vacancy_id is required", :unprocessable_entity) if vacancy_id.blank?
 
-        vacancy = Vacancy.find_by(id: vacancy_id)
-        return json_error("Vacancy not found", :not_found) unless vacancy
+        vacancy = Authorization::PortfolioAccess.find_vacancy!(vacancy_id, tenant_id: current_tenant_id)
 
         unless portfolio.complete?
           return json_error("Portfolio is not ready (status: #{portfolio.generation_status})", :unprocessable_entity)
         end
 
         # Return cached report if it exists and portfolio has no new overrides
-        existing = FitGapReport.find_by(portfolio_id: portfolio.id, vacancy_id: vacancy.id)
+        existing = Authorization::PortfolioAccess.find_report(
+          portfolio_id: portfolio.id,
+          vacancy_id: vacancy.id,
+          tenant_id: current_tenant_id
+        )
         if existing
           return json_response(report: fit_gap_json(existing))
         end
@@ -127,8 +131,12 @@ module Api
 
       # GET /api/v1/portfolios/:id/fitgap/:vacancy_id
       def show_fitgap
-        portfolio = Portfolio.find(params[:id])
-        report    = FitGapReport.find_by(portfolio_id: portfolio.id, vacancy_id: params[:vacancy_id])
+        portfolio = Authorization::PortfolioAccess.find_portfolio!(params[:id], tenant_id: current_tenant_id)
+        report = Authorization::PortfolioAccess.find_report(
+          portfolio_id: portfolio.id,
+          vacancy_id: params[:vacancy_id],
+          tenant_id: current_tenant_id
+        )
 
         if report.nil?
           return json_error("Fit/gap report not found", :not_found)
@@ -148,13 +156,12 @@ module Api
       end
 
       def set_portfolio
-        # Routes use :id for both session-based and direct portfolio lookups
-        # If called from session context, look up via session
-        if @session
-          @portfolio = @session.portfolio
-        else
-          @portfolio = Portfolio.find(params[:id])
-        end
+        @portfolio =
+          if @session
+            Authorization::PortfolioAccess.find_for_session!(@session.id, tenant_id: current_tenant_id)
+          else
+            Authorization::PortfolioAccess.find_portfolio!(params[:id], tenant_id: current_tenant_id)
+          end
       rescue ActiveRecord::RecordNotFound
         json_error("Portfolio not found", :not_found)
       end
@@ -174,13 +181,14 @@ module Api
 
       def portfolio_skill_json(skill)
         {
-          id:                skill.id,
-          skill_id:          skill.skill_id,
-          skill_label:       skill.skill_label,
-          is_discovered:     skill.is_discovered,
-          ai_level:          skill.ai_level,
-          ai_confidence:     skill.ai_confidence,
-          evidence:          skill.evidence_quotes,
+          id:                 skill.id,
+          skill_id:           skill.skill_id,
+          skill_label:        skill.skill_label,
+          is_discovered:      skill.is_discovered,
+          ai_level:           skill.ai_level,
+          ai_confidence:      skill.ai_confidence,
+          assessment_state:   'assessed',
+          evidence:           skill.evidence_quotes,
           competency_summary: skill.competency_summary
         }
       end
@@ -214,9 +222,12 @@ module Api
           exported_at: Time.current.iso8601,
           portfolio:   portfolio_json(portfolio)
         }
-
         if vacancy_id.present?
-          report = FitGapReport.find_by(portfolio_id: portfolio.id, vacancy_id: vacancy_id)
+          report = Authorization::PortfolioAccess.find_report(
+            portfolio_id: portfolio.id,
+            vacancy_id: vacancy_id,
+            tenant_id: current_tenant_id
+          )
           data[:fit_gap_report] = report ? fit_gap_json(report) : nil
         end
 

@@ -125,13 +125,21 @@ class CoverageWebSocketMiddleware
   def authenticate_assessor_by_token(token, session_id)
     payload = JsonWebToken.decode(token)
 
+    unless AuthorizeApiRequest::ASSESSOR_ROLES.include?(payload[:role].to_s)
+      return [nil, 'Unauthorized']
+    end
+
     org = Organization.find_by(scheme: payload[:scheme])
     return [nil, 'Invalid tenant'] unless org
 
-    session = Session.unscoped.where(tenant_id: org.id).find_by(id: session_id)
-    return [nil, 'Session not found'] unless session
+    session = Authorization::PortfolioAccess.find_session_for_websocket!(
+      session_id,
+      tenant_id: org.id
+    )
 
     [session, nil]
+  rescue ActiveRecord::RecordNotFound
+    [nil, 'Session not found']
   rescue => e
     [nil, "Authentication failed: #{e.message}"]
   end
