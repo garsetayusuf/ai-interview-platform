@@ -13,6 +13,7 @@ module Api
 
         if existing
           if existing.update(override_params.merge(overridden_by: current_user.id, overridden_at: Time.current))
+            @portfolio_skill.portfolio.update_column(:generated_at, Time.current)
             regenerate_stale_fitgap_reports
             json_response(override: override_json(existing))
           else
@@ -28,6 +29,7 @@ module Api
           )
 
           if new_override.save
+            @portfolio_skill.portfolio.update_column(:generated_at, Time.current)
             regenerate_stale_fitgap_reports
             json_response({ override: override_json(new_override) }, :created)
           else

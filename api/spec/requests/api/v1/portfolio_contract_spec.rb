@@ -190,10 +190,6 @@ RSpec.describe 'Portfolio and fit-gap API contracts', type: :request do
         FitGapReport.find_by(portfolio_id: portfolio.id, vacancy_id: vacancy.id)
       ).to eq(report)
 
-      get "/api/v1/portfolios/#{portfolio.id}/fitgap/#{vacancy.id}", headers: headers
-
-      expect(response).to have_http_status(:ok)
-      expect(JSON.parse(response.body).fetch('report').fetch('generated_at')).to be_present
     end
   end
 

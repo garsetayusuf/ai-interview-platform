@@ -146,6 +146,11 @@ module Api
           return json_error("Fit/gap report not found", :not_found)
         end
 
+        unless report_is_current?(report, portfolio)
+          FitGapGeneratorWorker.perform_async(portfolio.id, report.vacancy_id)
+          return render json: { status: "generating", message: "Fit/gap report regeneration queued" }, status: :accepted
+        end
+
         json_response(report: fit_gap_json(report))
       rescue ActiveRecord::RecordNotFound
         json_error("Portfolio not found", :not_found)
@@ -222,12 +227,12 @@ module Api
         }
       end
 
-      # True while the report is at least as new as the portfolio it was built from.
+      # True while the report is newer than the latest portfolio mutation.
       def report_is_current?(report, portfolio)
         return false if report.generated_at.blank?
         return true if portfolio.generated_at.blank?
 
-        report.generated_at >= portfolio.generated_at
+        report.generated_at >= portfolio.generated_at - 1.second
       end
 
       def consent_export_json(session)

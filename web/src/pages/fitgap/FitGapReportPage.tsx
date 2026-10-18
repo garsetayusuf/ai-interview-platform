@@ -46,6 +46,11 @@ export default function FitGapReportPage() {
 
     try {
       const res = await portfoliosApi.getFitGap(portfolio.id, Number(vacancyId));
+      if (!("report" in res.data)) {
+        setGenerating(true);
+        setLoadError(false);
+        return;
+      }
       const parsed = fitGapReportSchema.safeParse(res.data.report);
       if (!parsed.success) {
         console.error("Unexpected fit/gap response shape", parsed.error.issues);
