@@ -57,6 +57,7 @@ export default function AssessmentEditPage() {
         const skills = (a.skills ?? []).map((skill: AssessmentSkill) => ({
           ...skill,
           expected_level: skill.expected_level ?? 3,
+          skill_id: skill.skill_id ? String(skill.skill_id) : (skill.id ? "legacy-skill" : undefined),
           scope_include: skill.scope_include ?? "",
           scope_exclude: skill.scope_exclude ?? "",
           l1_anchor: skill.l1_anchor ?? "",

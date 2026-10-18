@@ -8,29 +8,33 @@ vi.mock("@/services/assessments", () => ({
   assessmentsApi: { get: vi.fn(), update: vi.fn() },
 }));
 
-describe("AssessmentEditPage API null normalization", () => {
-  it("normalizes nullable fields and allows an unrelated update to submit", async () => {
+function legacySkill(id: number, label: string) {
+  return {
+    id,
+    skill_id: null,
+    skill_label: label,
+    is_custom: false,
+    expected_level: null,
+    display_order: id,
+    scope_include: null,
+    scope_exclude: null,
+    l1_anchor: null,
+    l2_anchor: null,
+    l3_anchor: null,
+    l4_anchor: null,
+    l5_anchor: null,
+  };
+}
+
+describe("AssessmentEditPage legacy-null regression", () => {
+  it("loads every nullable skill field and saves after removing one skill", async () => {
     vi.mocked(assessmentsApi.get).mockResolvedValue({
       data: {
         assessment: {
           id: 2,
           name: "Backend Engineer",
           time_limit_min: 45,
-          skills: [{
-            id: 9,
-            skill_id: "skill-ruby",
-            skill_label: "Ruby",
-            is_custom: false,
-            expected_level: null,
-            display_order: 0,
-            scope_include: null,
-            scope_exclude: null,
-            l1_anchor: null,
-            l2_anchor: null,
-            l3_anchor: null,
-            l4_anchor: null,
-            l5_anchor: null,
-          }],
+          skills: [legacySkill(9, "Ruby"), legacySkill(10, "Rails")],
         },
       },
     } as never);
@@ -45,10 +49,19 @@ describe("AssessmentEditPage API null normalization", () => {
     );
 
     expect(await screen.findByText("Edit Assessment")).toBeInTheDocument();
-    expect(screen.queryByText("Invalid input: expected string, received null")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Remove skill" })).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Remove skill" })[0]);
+    const form = screen.getByRole("button", { name: "Save Changes" }).closest("form");
+    expect(form).toBeTruthy();
+    fireEvent.submit(form!);
 
     await waitFor(() => expect(assessmentsApi.update).toHaveBeenCalled());
+
+    const payload = vi.mocked(assessmentsApi.update).mock.calls[0][1] as {
+      assessment_skills_attributes: Array<{ id?: number }>;
+    };
+    expect(payload.assessment_skills_attributes).toHaveLength(1);
+    expect(payload.assessment_skills_attributes[0].id).toBe(10);
   });
 });
