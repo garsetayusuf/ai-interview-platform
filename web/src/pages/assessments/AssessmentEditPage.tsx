@@ -25,6 +25,7 @@ import SkillCard from "@/components/assessment/SkillCard";
 import SkillPicker from "@/components/assessment/SkillPicker";
 import { ArrowLeft, Plus, Loader2, RefreshCw } from "lucide-react";
 import { assessmentsApi } from "@/services/assessments";
+import { assessmentSchema } from "@/schemas/assessment";
 import { apiErrorMessage } from "@/lib/httpError";
 import { TIME_LIMIT_OPTIONS } from "@/utils/constants";
 import type { AssessmentSkill } from "@/types";
@@ -75,6 +76,18 @@ export default function AssessmentEditPage() {
 
   const onSubmit = async (data: AssessmentFormValues) => {
     if (data.skills.length === 0) { setError("Add at least one skill."); return; }
+    const parsed = assessmentSchema.safeParse({
+      name: data.name,
+      time_limit_min: data.time_limit_min,
+      skills: data.skills.map((skill) => ({
+        ...skill,
+        skill_id: skill.skill_id ? String(skill.skill_id) : undefined,
+      })),
+    });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Check the assessment fields.");
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
