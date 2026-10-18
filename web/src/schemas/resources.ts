@@ -5,10 +5,9 @@ export const vacancySkillSchema = z.object({
   expected_level: z.number().int().min(1).max(5),
 });
 export const vacancySchema = z.object({
-  role_title: z.string().min(1).max(255),
+  skills: z.array(vacancySkillSchema),
   culture_dimensions: z.string().max(5000).optional(),
   competency_expectations: z.string().max(5000).optional(),
-  skills: z.array(vacancySkillSchema).min(1),
 });
 export const overrideSchema = z.object({
   override_level: z.number().int().min(1).max(5),

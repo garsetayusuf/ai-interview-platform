@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import LevelRadio from "@/components/assessment/LevelRadio";
 import SkillPicker from "@/components/assessment/SkillPicker";
+import { vacancySchema } from "@/schemas/resources";
 import { vacanciesApi } from "@/services/vacancies";
 import { ArrowLeft, Plus, X, Loader2 } from "lucide-react";
 import type { VacancySkill } from "@/types";
@@ -32,6 +33,19 @@ export default function VacancyNewPage() {
   const { fields, append, remove } = useFieldArray({ control, name: "skills" });
 
   const onSubmit = async (data: VacancyFormValues) => {
+    const parsed = vacancySchema.safeParse({
+      role_title: data.role_title,
+      culture_dimensions: data.culture_dimensions,
+      competency_expectations: data.competency_expectations,
+      skills: data.skills.map((skill) => ({
+        skill_label: skill.skill_label ?? "",
+        expected_level: skill.expected_level ?? 3,
+      })),
+    });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Check the vacancy fields.");
+      return;
+    }
     setError(null);
     setSubmitting(true);
     try {
