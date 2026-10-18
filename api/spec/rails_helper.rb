@@ -12,6 +12,7 @@ require 'timecop'
 require_relative 'spec_helper'
 require_relative 'support/factory_bot'
 require_relative 'support/api_request_helpers'
+require_relative 'support/fake_coverage_socket'
 
 begin
   ActiveRecord::Migration.maintain_test_schema!

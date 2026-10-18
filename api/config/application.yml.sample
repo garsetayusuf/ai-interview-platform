@@ -27,4 +27,12 @@ TOKEN_EXPIRATION_TIME: "259200"  # 3 days in seconds
 ALLOWED_ORIGINS: "*"
 
 # Sidekiq / Redis
+# The Sidekiq and publisher instance must run with `maxmemory-policy noeviction`:
+# nothing may evict a queue entry or a published coverage update.
 REDIS_URL: "redis://localhost:6379/1"
+
+# Cache and throttle counters. Falls back to REDIS_URL locally so development
+# keeps a single instance. Point this at its own instance in any deployment that
+# sets a maxmemory policy: `maxmemory-policy allkeys-lru` with an explicit
+# `maxmemory` keeps the cache bounded without being able to evict Sidekiq keys.
+REDIS_CACHE_URL: ""
