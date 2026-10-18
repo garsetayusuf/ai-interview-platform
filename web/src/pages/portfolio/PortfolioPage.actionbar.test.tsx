@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import PortfolioPage from "@/pages/portfolio/PortfolioPage";
 import { sessionsApi } from "@/services/sessions";
@@ -125,5 +125,104 @@ describe("PortfolioPage action bar", () => {
         expect(
             within(bar).getByRole("combobox", { name: "Compare against vacancy, 1 available" })
         ).toBeInTheDocument();
+    });
+});
+
+describe("PortfolioPage page states", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.mocked(vacanciesApi.list).mockResolvedValue({ data: { vacancies: VACANCIES } } as never);
+        vi.mocked(sessionsApi.get).mockResolvedValue({
+            data: { session: { id: 2, candidate_name: "Synthetic Candidate" } },
+        } as never);
+        vi.mocked(portfoliosApi.getFitGap).mockRejectedValue(new Error("404"));
+    });
+
+    it("holds the page in a loading placeholder until the portfolio request settles", async () => {
+        vi.mocked(sessionsApi.getPortfolio).mockResolvedValue({ data: { portfolio: PORTFOLIO } } as never);
+
+        renderPage();
+
+        // Nothing is claimed about the portfolio until the request answers.
+        expect(screen.queryByRole("heading", { name: "Portfolio Results" })).not.toBeInTheDocument();
+        expect(screen.queryByTestId("portfolio-action-bar")).not.toBeInTheDocument();
+
+        expect(await screen.findByRole("heading", { name: "Portfolio Results" })).toBeInTheDocument();
+    });
+
+    it("reports a load failure and recovers on retry", async () => {
+        vi.mocked(sessionsApi.getPortfolio).mockRejectedValueOnce(new Error("offline"));
+
+        renderPage();
+
+        expect(await screen.findByRole("alert")).toHaveTextContent("We could not load this portfolio.");
+        expect(screen.queryByTestId("portfolio-action-bar")).not.toBeInTheDocument();
+
+        vi.mocked(sessionsApi.getPortfolio).mockResolvedValue({ data: { portfolio: PORTFOLIO } } as never);
+        fireEvent.click(screen.getByRole("button", { name: /Retry/ }));
+
+        expect(await screen.findByTestId("portfolio-action-bar")).toBeInTheDocument();
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Configured Skills" })).toBeInTheDocument();
+    });
+
+    it("announces portfolio generation through a live region", async () => {
+        vi.mocked(sessionsApi.getPortfolio).mockResolvedValue({ data: { status: "generating" } } as never);
+
+        renderPage();
+
+        await screen.findByTestId("portfolio-action-bar");
+
+        const banner = screen
+            .getAllByRole("status")
+            .find((element) => element.textContent?.includes("Generating portfolio..."));
+
+        expect(banner).toBeDefined();
+        expect(banner).toHaveAttribute("aria-live", "polite");
+        expect(banner).toHaveTextContent("The AI is analyzing the interview transcript.");
+
+        // No results are claimed while generation has not finished.
+        expect(screen.queryByRole("heading", { name: "Configured Skills" })).not.toBeInTheDocument();
+        expect(screen.queryByText("Portfolio generation failed.")).not.toBeInTheDocument();
+    });
+
+    it("reports a failed generation and requeues it on retry", async () => {
+        vi.mocked(sessionsApi.getPortfolio).mockResolvedValue({
+            data: { portfolio: { ...PORTFOLIO, generation_status: "failed" } },
+        } as never);
+        vi.mocked(sessionsApi.regeneratePortfolio).mockResolvedValue({ data: {} } as never);
+
+        renderPage();
+
+        expect(await screen.findByText("Portfolio generation failed.")).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: /Retry/ }));
+
+        await waitFor(() => expect(sessionsApi.regeneratePortfolio).toHaveBeenCalledWith(2));
+        expect(await screen.findByText("Generating portfolio...")).toBeInTheDocument();
+        expect(screen.queryByText("Portfolio generation failed.")).not.toBeInTheDocument();
+    });
+
+    it("says there is nothing to compare when the portfolio captured no skills", async () => {
+        vi.mocked(sessionsApi.getPortfolio).mockResolvedValue({
+            data: { portfolio: { ...PORTFOLIO, skills: [] } },
+        } as never);
+
+        renderPage();
+
+        expect(await screen.findByText("No skills were captured for this session.")).toBeInTheDocument();
+        expect(screen.queryByTestId("portfolio-action-bar")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Run Fit\/Gap Analysis/ })).not.toBeInTheDocument();
+    });
+
+    it("renders the captured skills once the portfolio is complete", async () => {
+        vi.mocked(sessionsApi.getPortfolio).mockResolvedValue({ data: { portfolio: PORTFOLIO } } as never);
+
+        renderPage();
+
+        expect(await screen.findByRole("heading", { name: "Configured Skills" })).toBeInTheDocument();
+        expect(screen.getByText("React")).toBeInTheDocument();
+        expect(screen.queryByText("Portfolio generation failed.")).not.toBeInTheDocument();
+        expect(screen.queryByText("Generating portfolio...")).not.toBeInTheDocument();
     });
 });

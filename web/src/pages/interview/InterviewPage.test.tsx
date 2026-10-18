@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import InterviewPage from "@/pages/interview/InterviewPage";
 import { sessionsApi } from "@/services/sessions";
-import type { CandidateInfo, ConsentState } from "@/types";
+import { useAudioWebSocket } from "@/hooks/useAudioWebSocket";
+import type { CandidateInfo, ConsentState, InterviewState } from "@/types";
 
 vi.mock("@/services/sessions", () => ({
     sessionsApi: {
@@ -15,13 +16,7 @@ vi.mock("@/services/sessions", () => ({
 }));
 
 vi.mock("@/hooks/useAudioWebSocket", () => ({
-    useAudioWebSocket: () => ({
-        connect: vi.fn(),
-        send: vi.fn(),
-        sendJson: vi.fn(),
-        disconnect: vi.fn(),
-        connectionState: "disconnected",
-    }),
+    useAudioWebSocket: vi.fn(),
 }));
 
 vi.mock("@/hooks/useAudioCapture", () => ({
@@ -39,6 +34,7 @@ vi.mock("@/hooks/useAudioPlayback", () => ({
 }));
 
 const PENDING: ConsentState = { required: true, accepted: false, declined: false, version: "v1" };
+const ACCEPTED: ConsentState = { ...PENDING, accepted: true };
 
 function candidateInfo(overrides: Partial<CandidateInfo> = {}): CandidateInfo {
     return {
@@ -61,12 +57,85 @@ function renderPage() {
     );
 }
 
-describe("InterviewPage consent gate", () => {
-    beforeEach(() => {
-        vi.clearAllMocks();
-        vi.mocked(sessionsApi.getCandidateInfo).mockResolvedValue({ data: candidateInfo() } as never);
+let socketHandlers: {
+    onStateChange: (state: InterviewState) => void;
+    onReconnected: () => void;
+} | null = null;
+
+beforeEach(() => {
+    vi.clearAllMocks();
+    socketHandlers = null;
+    vi.mocked(useAudioWebSocket).mockImplementation((handlers) => {
+        socketHandlers = handlers as {
+            onStateChange: (state: InterviewState) => void;
+            onReconnected: () => void;
+        };
+        return {
+            connect: vi.fn(),
+            send: vi.fn(),
+            sendJson: vi.fn(),
+            disconnect: vi.fn(),
+            connectionState: "disconnected",
+        } as never;
+    });
+    vi.mocked(sessionsApi.getCandidateInfo).mockResolvedValue({ data: candidateInfo() } as never);
+});
+
+describe("InterviewPage invite failures", () => {
+    it("treats a missing invite as invalid, not as a finished interview", async () => {
+        vi.mocked(sessionsApi.getCandidateInfo).mockRejectedValue({ response: { status: 404 } });
+
+        renderPage();
+
+        expect(
+            await screen.findByRole("heading", { name: "This invitation link is not valid" })
+        ).toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Interview Complete" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+        expect(
+            screen.queryByRole("heading", { name: "Before you start" })
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText("OS & browser")).not.toBeInTheDocument();
     });
 
+    it("offers a retry when the invite cannot be loaded, and opens the interview on retry", async () => {
+        vi.mocked(sessionsApi.getCandidateInfo)
+            .mockRejectedValueOnce(new Error("offline"))
+            .mockResolvedValue({ data: candidateInfo({ consent: ACCEPTED }) } as never);
+
+        renderPage();
+
+        expect(
+            await screen.findByRole("heading", { name: "We could not load your interview" })
+        ).toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Interview Complete" })).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+        expect(await screen.findByText("OS & browser")).toBeInTheDocument();
+        expect(
+            screen.queryByRole("heading", { name: "We could not load your interview" })
+        ).not.toBeInTheDocument();
+    });
+
+    it("shows a finished interview without re-checking consent or hardware", async () => {
+        vi.mocked(sessionsApi.getCandidateInfo).mockResolvedValue({
+            data: candidateInfo({ session_status: "ended" }),
+        } as never);
+
+        renderPage();
+
+        expect(
+            await screen.findByRole("heading", { name: "Interview Complete" })
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByRole("heading", { name: "Before you start" })
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText("OS & browser")).not.toBeInTheDocument();
+    });
+});
+
+describe("InterviewPage consent gate", () => {
     it("shows the notice before any hardware check", async () => {
         renderPage();
 
@@ -136,5 +205,29 @@ describe("InterviewPage consent gate", () => {
 
         expect(await screen.findByText("OS & browser")).toBeInTheDocument();
         expect(screen.queryByRole("heading", { name: "Before you start" })).not.toBeInTheDocument();
+    });
+});
+
+describe("InterviewPage active interview", () => {
+    it("names the control that collapses the reconnection notice", async () => {
+        vi.mocked(sessionsApi.getCandidateInfo).mockResolvedValue({
+            data: candidateInfo({ consent: ACCEPTED }),
+        } as never);
+
+        renderPage();
+        await screen.findByText("OS & browser");
+
+        act(() => socketHandlers?.onStateChange("active"));
+
+        expect(screen.queryByText(/Reconnected — please say/)).not.toBeInTheDocument();
+
+        act(() => socketHandlers?.onReconnected());
+
+        fireEvent.click(await screen.findByRole("button", { name: "Dismiss reconnection notice" }));
+
+        expect(
+            screen.queryByRole("button", { name: "Dismiss reconnection notice" })
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText(/Reconnected — please say/)).not.toBeInTheDocument();
     });
 });

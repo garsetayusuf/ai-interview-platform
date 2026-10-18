@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import FitGapReportPage from "@/pages/fitgap/FitGapReportPage";
 import { sessionsApi } from "@/services/sessions";
@@ -175,5 +175,154 @@ describe("FitGapReportPage failure handling", () => {
         await screen.findByText("Skill Comparison");
 
         expect(screen.queryByText(/Overrides on skills outside this vacancy/)).not.toBeInTheDocument();
+    });
+});
+
+describe("FitGapReportPage report lifecycle", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        vi.mocked(sessionsApi.getPortfolio).mockResolvedValue({
+            data: { portfolio: PORTFOLIO },
+        } as never);
+        vi.mocked(portfoliosApi.getFitGap).mockResolvedValue({ data: { report: REPORT } } as never);
+    });
+
+    // Under fake timers the chained load -> lookup -> queue promises settle on
+    // microtasks only, so flush them explicitly instead of waiting on timers.
+    async function flush() {
+        await act(async () => {});
+    }
+
+    it("holds the page in a loading placeholder until the portfolio arrives", async () => {
+        renderPage();
+
+        // The request has not settled yet, so no page content is on screen.
+        expect(screen.queryByRole("heading", { name: "Fit/Gap Report" })).not.toBeInTheDocument();
+
+        expect(await screen.findByRole("heading", { name: "Fit/Gap Report" })).toBeInTheDocument();
+        expect(await screen.findByText("Skill Comparison")).toBeInTheDocument();
+    });
+
+    it("says no report exists yet while the first lookup is still unanswered", async () => {
+        vi.mocked(portfoliosApi.getFitGap).mockRejectedValue({ response: { status: 404 } });
+        // A request that never answers holds the page in its pre-report state.
+        vi.mocked(portfoliosApi.triggerFitGap).mockReturnValue(new Promise<never>(() => {}) as never);
+
+        renderPage();
+
+        expect(await screen.findByText("No fit/gap report yet.")).toBeInTheDocument();
+        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+        expect(portfoliosApi.triggerFitGap).toHaveBeenCalledTimes(1);
+    });
+
+    it("announces the queued generation through a live region", async () => {
+        vi.mocked(portfoliosApi.getFitGap).mockRejectedValue({ response: { status: 404 } });
+        vi.mocked(portfoliosApi.triggerFitGap).mockResolvedValue({ data: {} } as never);
+
+        renderPage();
+
+        const generating = await screen.findByRole("status");
+        expect(generating).toHaveAttribute("aria-live", "polite");
+        expect(generating).toHaveTextContent("Generating fit/gap report...");
+        expect(portfoliosApi.triggerFitGap).toHaveBeenCalledTimes(1);
+        expect(portfoliosApi.triggerFitGap).toHaveBeenCalledWith(7, 2);
+    });
+
+    it("reports a failed generation and requeues the comparison on retry", async () => {
+        vi.useFakeTimers();
+        try {
+            let portfolioLookups = 0;
+            vi.mocked(sessionsApi.getPortfolio).mockImplementation(async () => {
+                portfolioLookups += 1;
+                return portfolioLookups === 1
+                    ? ({ data: { portfolio: PORTFOLIO } } as never)
+                    : ({ data: { portfolio: { ...PORTFOLIO, generation_status: "failed" } } } as never);
+            });
+            vi.mocked(portfoliosApi.getFitGap).mockRejectedValue({ response: { status: 404 } });
+            vi.mocked(portfoliosApi.triggerFitGap).mockResolvedValue({ data: {} } as never);
+
+            renderPage();
+            await flush();
+            await flush();
+            await flush();
+
+            expect(screen.getByRole("status")).toHaveTextContent("Generating fit/gap report...");
+
+            await act(async () => {
+                vi.advanceTimersByTime(5000);
+            });
+            await flush();
+            await flush();
+
+            expect(screen.getByRole("alert")).toHaveTextContent("Fit/gap generation failed.");
+            expect(screen.queryByRole("status")).not.toBeInTheDocument();
+
+            await act(async () => {
+                fireEvent.click(screen.getByRole("button", { name: /Retry/ }));
+            });
+            await flush();
+
+            expect(screen.queryByText("Fit/gap generation failed.")).not.toBeInTheDocument();
+            expect(screen.getByRole("status")).toHaveTextContent("Generating fit/gap report...");
+            expect(portfoliosApi.triggerFitGap).toHaveBeenCalledTimes(2);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it("keeps the previous report on screen and flagged while a replacement generates", async () => {
+        vi.mocked(portfoliosApi.regenerateFitGap).mockResolvedValue({ data: {} } as never);
+
+        renderPage();
+        await screen.findByText("Skill Comparison");
+
+        fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+
+        const banner = await screen.findByText(/Regenerating\. The report below is the previous version/);
+        expect(banner).toHaveAttribute("role", "status");
+        expect(banner).toHaveAttribute("aria-live", "polite");
+        expect(screen.getByText("Skill Comparison")).toBeInTheDocument();
+        expect(portfoliosApi.regenerateFitGap).toHaveBeenCalledWith(7, 2);
+    });
+
+    it("renders the stored comparison, culture narrative and overall summary", async () => {
+        renderPage();
+
+        expect(await screen.findByText("Skill Comparison")).toBeInTheDocument();
+        expect(screen.getByRole("table", { name: /Skill comparison/ })).toBeInTheDocument();
+        expect(screen.getByText("React")).toBeInTheDocument();
+        expect(screen.getByText("Culture fit narrative.")).toBeInTheDocument();
+        expect(screen.getByText("Overall Summary")).toBeInTheDocument();
+        expect(screen.getByText("Overall narrative.")).toBeInTheDocument();
+        expect(screen.queryByText("No fit/gap report yet.")).not.toBeInTheDocument();
+    });
+
+    it("keeps the culture narrative slot explicit when the report has none", async () => {
+        vi.mocked(portfoliosApi.getFitGap).mockResolvedValue({
+            data: { report: { ...REPORT, culture_narrative: "", overall_narrative: "" } },
+        } as never);
+
+        renderPage();
+
+        expect(await screen.findByText("Skill Comparison")).toBeInTheDocument();
+        expect(
+            screen.getByText(/No culture narrative was generated for this report\./)
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Overall Summary")).not.toBeInTheDocument();
+    });
+
+    it("recovers from a load failure when the retry succeeds", async () => {
+        vi.mocked(sessionsApi.getPortfolio)
+            .mockRejectedValueOnce(new Error("offline"))
+            .mockResolvedValue({ data: { portfolio: PORTFOLIO } } as never);
+
+        renderPage();
+
+        expect(await screen.findByRole("alert")).toHaveTextContent("We could not load this fit/gap report.");
+
+        fireEvent.click(screen.getByRole("button", { name: /Retry/ }));
+
+        expect(await screen.findByText("Skill Comparison")).toBeInTheDocument();
+        expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 });
