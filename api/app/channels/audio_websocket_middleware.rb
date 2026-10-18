@@ -277,8 +277,13 @@ class AudioWebSocketMiddleware
     }
   end
 
-  # Strips coverage/time metadata that leaks into output transcription via realtimeInput.text echoes.
+  # Removes internal coverage/control echoes from the transcript shown to the
+  # candidate. Realtime text echoes can arrive after natural language, so the
+  # sanitizer must not only strip metadata at the beginning of the turn.
   def sanitize_output_transcription(text)
+    text = text.to_s
+    text = text.gsub(/```(?:json)?\s*(?:\[\s*)?\{.*?\}(?:\s*\])?\s*```/mi, '').strip
+    text = text.gsub(/\[\s*\{\s*["']skill["']\s*:\s*.*?["']probe_count["']\s*:\s*\d+\s*\}\s*\]/mi, '').strip
     text = text.gsub(/\[COVERAGE[_ ]MAP\][\s\S]*?\[\/COVERAGE[_ ]MAP\]/m, '').strip
     text = text.gsub(/\[COVERAGE[_ ]MAP[^\]]*\]/m, '').strip
     text = text.sub(/\A\s*\{.*?"discovered"\s*:\s*\[.*?\].*?\}\s*/m, '').strip
