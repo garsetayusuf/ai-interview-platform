@@ -111,7 +111,16 @@ class AudioWebSocketMiddleware
       return
     end
 
-    Sessions::StartHandler.new(session).call unless session.active?
+    unless session.active?
+      started = Sessions::StartHandler.new(session).call
+      unless started
+        send_json(browser_ws, type: 'error', code: 'consent_required',
+                              message: 'Consent is required before the interview can start.',
+                              recoverable: false)
+        browser_ws.close
+        return
+      end
+    end
 
     state.turn_counter = session.transcript_turns.maximum(:turn_number).to_i
 
@@ -737,7 +746,12 @@ class AudioWebSocketMiddleware
       invite_token = request.params['token']
 
       if invite_token.present?
-        Session.unscoped.find_by(invite_token: invite_token)
+        candidate_session = Session.unscoped.find_by(invite_token: invite_token)
+        # The gate is enforced here as well as in the UI: without an accepted
+        # notice there is no audio session, whatever the page claims.
+        return [nil, 'Consent required'] if candidate_session && !candidate_session.consent_accepted?
+
+        candidate_session
       else
         auth_header = env['HTTP_AUTHORIZATION']
         return [nil, 'Missing authorization'] unless auth_header.present?

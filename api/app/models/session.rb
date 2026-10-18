@@ -5,6 +5,7 @@ class Session < ApplicationRecord
 
   STATUSES   = %w[pending active ended failed].freeze
   END_REASONS = %w[manual_candidate manual_assessor all_covered time_ceiling error].freeze
+  CONSENT_VERSION = 'v1'
 
   belongs_to :assessment
   has_many :transcript_turns, dependent: :destroy
@@ -24,6 +25,10 @@ class Session < ApplicationRecord
   def active?  = status == 'active'
   def ended?   = status == 'ended'
   def pending? = status == 'pending'
+
+  # The candidate may only be interviewed after UU PDP consent is recorded.
+  def consent_accepted? = consent_accepted_at.present?
+  def consent_declined? = consent_declined_at.present?
 
   def invite_url
     base = ENV.fetch('CANDIDATE_APP_URL', 'http://localhost:5173').delete_suffix('/')
