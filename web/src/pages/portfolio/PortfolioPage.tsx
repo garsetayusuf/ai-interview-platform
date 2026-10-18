@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { portfolioSchema } from "@/schemas/portfolio";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -71,11 +72,16 @@ export default function PortfolioPage() {
     ) {
       setGenerating(true);
     } else if (data.portfolio) {
-      setPortfolio(data.portfolio);
+      const parsed = portfolioSchema.safeParse(data.portfolio);
+      if (!parsed.success) {
+        console.error("Unexpected portfolio response shape", parsed.error.issues);
+        throw new Error("Unexpected portfolio response shape");
+      }
+      const validated = parsed.data as Portfolio;
+      setPortfolio(validated);
       setGenerating(false);
-      // Build overrides map
       const overrideMap: Record<number, AssessorOverride> = {};
-      data.portfolio.overrides.forEach((o: AssessorOverride) => {
+      validated.overrides.forEach((o: AssessorOverride) => {
         overrideMap[o.portfolio_skill_id] = o;
       });
       setOverrides(overrideMap);

@@ -8,6 +8,7 @@ import ComparisonTable from "@/components/fitgap/ComparisonTable";
 import LevelBadge from "@/components/portfolio/LevelBadge";
 import { portfoliosApi } from "@/services/portfolios";
 import { sessionsApi } from "@/services/sessions";
+import { fitGapReportSchema } from "@/schemas/portfolio";
 import { usePolling } from "@/hooks/usePolling";
 import { httpStatus } from "@/lib/httpError";
 import { ArrowLeft, Download, Loader2, RefreshCw, Zap } from "lucide-react";
@@ -45,7 +46,12 @@ export default function FitGapReportPage() {
 
     try {
       const res = await portfoliosApi.getFitGap(portfolio.id, Number(vacancyId));
-      const incoming = res.data.report;
+      const parsed = fitGapReportSchema.safeParse(res.data.report);
+      if (!parsed.success) {
+        console.error("Unexpected fit/gap response shape", parsed.error.issues);
+        throw new Error("Unexpected fit/gap response shape");
+      }
+      const incoming = parsed.data as FitGapReport;
 
       if (replacing && incoming.generated_at === replacing) {
         replacementAttemptsRef.current += 1;
