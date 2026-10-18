@@ -12,6 +12,7 @@ module Portfolios
     def call
       data = parse_response
       validate_root!(data)
+      normalize_levels!(data)
       validate_skills!(data['configured_skills'], configured: true)
       validate_skills!(data['discovered_skills'], configured: false)
       data
@@ -31,6 +32,19 @@ module Portfolios
     def validate_root!(data)
       ROOT_KEYS.each do |key|
         raise Portfolios::InvalidResponse, "Portfolio response missing #{key}" unless data[key].is_a?(Array)
+      end
+    end
+
+    # Gemini occasionally serializes an otherwise valid level as "L3" or "3".
+    # Normalize only those exact bounded forms; malformed/out-of-range values
+    # still fail the strict validator below.
+    def normalize_levels!(data)
+      data.values_at('configured_skills', 'discovered_skills').flatten.each do |skill|
+        next unless skill.is_a?(Hash)
+        next unless skill['level'].is_a?(String)
+
+        match = /\AL?([1-5])\z/i.match(skill['level'].strip)
+        skill['level'] = match[1].to_i if match
       end
     end
 
