@@ -214,6 +214,25 @@ export function installMediaDevices(
     return { getUserMedia, enumerateDevices };
 }
 
+/**
+ * jsdom implements neither pointer capture nor layout scrolling; Radix Select
+ * calls both while opening.
+ */
+export function installPointerCapture() {
+    const setPointerCapture = vi.fn();
+    const releasePointerCapture = vi.fn();
+    const hasPointerCapture = vi.fn(() => false);
+
+    Object.assign(Element.prototype, { setPointerCapture, releasePointerCapture, hasPointerCapture });
+    return { setPointerCapture, releasePointerCapture, hasPointerCapture };
+}
+
+export function installScrollIntoView() {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView as unknown as Element["scrollIntoView"];
+    return scrollIntoView;
+}
+
 export function installAnimationFrame() {
     let nextHandle = 0;
     const callbacks = new Map<number, FrameRequestCallback>();
@@ -247,4 +266,6 @@ export function installBrowserStubs() {
     installMediaStream();
     installAudioContext();
     installAnimationFrame();
+    installPointerCapture();
+    installScrollIntoView();
 }
