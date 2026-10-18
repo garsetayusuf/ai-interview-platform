@@ -172,11 +172,20 @@ export interface SkillTaxonomy {
   l5_anchor: string;
 }
 
+export interface ConsentState {
+  required: boolean;
+  accepted: boolean;
+  declined: boolean;
+  version: string;
+  session_ended?: boolean;
+}
+
 export interface CandidateInfo {
   session_id: number;
   role_title: string;
   time_limit_min: number;
   session_status: string;
+  consent: ConsentState;
 }
 
 export interface PaginationMeta {
@@ -189,6 +198,7 @@ export interface PaginationMeta {
 // WebSocket message types
 export type InterviewState =
   | "idle"
+  | "consent"
   | "hardware_check"
   | "connecting"
   | "active"

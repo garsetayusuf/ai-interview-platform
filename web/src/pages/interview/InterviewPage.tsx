@@ -21,6 +21,7 @@ import { useAudioPlayback } from "@/hooks/useAudioPlayback";
 import { useAudioWebSocket } from "@/hooks/useAudioWebSocket";
 import { sessionsApi } from "@/services/sessions";
 import HardwareCheck from "@/components/HardwareCheck";
+import ConsentGate from "@/components/consent/ConsentGate";
 import { CheckCircle, Mic, MicOff } from "lucide-react";
 import { httpStatus } from "@/lib/httpError";
 import type { CandidateInfo, InterviewState, InterviewSpeaker, TranscriptTurn } from "@/types";
@@ -31,6 +32,8 @@ export default function InterviewPage() {
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [interviewState, setInterviewState] = useState<InterviewState>("idle");
   const [candidateError, setCandidateError] = useState<"invalid" | "unavailable" | null>(null);
+  const [consentBusy, setConsentBusy] = useState(false);
+  const [consentError, setConsentError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [speaker, setSpeaker] = useState<InterviewSpeaker>(null);
   const [transcript, setTranscript] = useState<Pick<TranscriptTurn, "speaker" | "text">[]>([]);
@@ -50,13 +53,47 @@ export default function InterviewPage() {
       .then((res) => {
         setCandidateInfo(res.data);
         setSessionId(res.data.session_id);
-        if (res.data.session_status === "ended") setInterviewState("complete");
+        if (res.data.session_status === "ended") {
+          setInterviewState("complete");
+        } else if (!res.data.consent.accepted) {
+          // Nothing runs — hardware checks included — until consent is recorded.
+          setInterviewState("consent");
+        }
       })
       .catch((error: unknown) => {
         // A missing or expired invite must never look like a finished interview.
         setCandidateError(httpStatus(error) === 404 ? "invalid" : "unavailable");
       });
   }, [token, retryCount]);
+
+  const acceptConsent = useCallback(async () => {
+    if (!token || !candidateInfo) return;
+    setConsentBusy(true);
+    setConsentError(null);
+    try {
+      const res = await sessionsApi.acceptConsent(token, candidateInfo.consent.version);
+      setCandidateInfo((prev) => (prev ? { ...prev, consent: res.data.consent } : prev));
+      setInterviewState("idle");
+    } catch {
+      setConsentError("We could not record your consent. Check your connection and try again.");
+    } finally {
+      setConsentBusy(false);
+    }
+  }, [token, candidateInfo]);
+
+  const declineConsent = useCallback(async () => {
+    if (!token || !candidateInfo) return;
+    setConsentBusy(true);
+    setConsentError(null);
+    try {
+      const res = await sessionsApi.declineConsent(token, candidateInfo.consent.version);
+      setCandidateInfo((prev) => (prev ? { ...prev, consent: res.data.consent } : prev));
+    } catch {
+      setConsentError("We could not record your decision. Check your connection and try again.");
+    } finally {
+      setConsentBusy(false);
+    }
+  }, [token, candidateInfo]);
 
   const muteRef = useRef<(() => void) | null>(null);
   const unmuteRef = useRef<(() => void) | null>(null);
@@ -214,6 +251,21 @@ export default function InterviewPage() {
           </Button>
         )}
       </div>
+    );
+  }
+
+  // ── State D0: Consent gate ──────────────────────────────────────────────
+  if (interviewState === "consent" && candidateInfo) {
+    return (
+      <ConsentGate
+        roleTitle={candidateInfo.role_title}
+        timeLimitMin={candidateInfo.time_limit_min}
+        consent={candidateInfo.consent}
+        busy={consentBusy}
+        errorMessage={consentError}
+        onAccept={acceptConsent}
+        onDecline={declineConsent}
+      />
     );
   }
 
