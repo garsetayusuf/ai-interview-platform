@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { overrideSchema } from "@/schemas/resources";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -25,12 +26,18 @@ export default function OverridePanel({ skill, existingOverride, onSaved }: Over
   const hasOverride = !!existingOverride;
 
   const handleSave = async () => {
+    const parsed = overrideSchema.safeParse({ override_level: overrideLevel, assessor_notes: notes });
+    if (!parsed.success) {
+      setSaveError(true);
+      return;
+    }
+
     setSaving(true);
     setSaveError(false);
     try {
       const res = await portfoliosApi.getOverride(skill.id, {
-        override_level: overrideLevel,
-        assessor_notes: notes,
+        override_level: parsed.data.override_level,
+        assessor_notes: parsed.data.assessor_notes,
       });
       onSaved(res.data.override);
       setOpen(false);

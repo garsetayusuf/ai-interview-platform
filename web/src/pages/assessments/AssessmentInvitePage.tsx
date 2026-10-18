@@ -95,7 +95,7 @@ function SessionRow({
         )}
 
         <div className="flex items-center gap-1.5">
-          {isPending && (
+          {isPending && !consentDeclined && (
             <Button
               variant="ghost"
               size="sm"
