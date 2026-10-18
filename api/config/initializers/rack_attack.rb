@@ -31,15 +31,19 @@ class FailOpenThrottleStore
   private
 
   def guard(method_name, fallback, *args, **options)
-    @store.public_send(method_name, *args, **options)
+    begin
+      @store.public_send(method_name, *args, options)
+    rescue ArgumentError
+      # Rails/redis versions differ on whether cache options are positional or
+      # keyword arguments. A counter without expiry still fails open safely.
+      @store.public_send(method_name, *args)
+    end
   rescue StandardError => e
     raise unless store_unavailable?(e)
 
     Rails.logger.error("[Rack::Attack] throttle store unavailable (#{e.class})")
     fallback
   end
-
-  # Only connection-level failures fail open; a programming error still raises.
   def store_unavailable?(error)
     %w[Redis RedisClient ActiveSupport::Cache::Store].any? do |prefix|
       error.class.name.to_s.start_with?(prefix)
@@ -54,7 +58,6 @@ class Rack::Attack
   Rack::Attack.cache.store = FailOpenThrottleStore.new(
     ActiveSupport::Cache::RedisCacheStore.new(
       url:             cache_url,
-      pool:            { size: 5, timeout: 1 },
       connect_timeout: 1,
       read_timeout:    1,
       write_timeout:   1

@@ -54,7 +54,6 @@ Rails.application.configure do
   cache_url = ENV.fetch("REDIS_URL", "redis://localhost:6379/0") if cache_url.empty?
   config.cache_store = :redis_cache_store, {
     url:             cache_url,
-    pool:            { size: 5, timeout: 1 },
     connect_timeout: 1,
     read_timeout:    1,
     write_timeout:   1
