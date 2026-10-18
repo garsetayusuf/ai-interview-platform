@@ -54,7 +54,17 @@ export default function AssessmentEditPage() {
       .get(Number(id))
       .then((res) => {
         const a = res.data.assessment;
-        reset({ name: a.name, time_limit_min: a.time_limit_min, skills: a.skills });
+        const skills = (a.skills ?? []).map((skill: AssessmentSkill) => ({
+          ...skill,
+          scope_include: skill.scope_include ?? "",
+          scope_exclude: skill.scope_exclude ?? "",
+          l1_anchor: skill.l1_anchor ?? "",
+          l2_anchor: skill.l2_anchor ?? "",
+          l3_anchor: skill.l3_anchor ?? "",
+          l4_anchor: skill.l4_anchor ?? "",
+          l5_anchor: skill.l5_anchor ?? "",
+        }));
+        reset({ name: a.name, time_limit_min: a.time_limit_min, skills });
       })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
@@ -79,10 +89,19 @@ export default function AssessmentEditPage() {
     const parsed = assessmentSchema.safeParse({
       name: data.name,
       time_limit_min: data.time_limit_min,
-      skills: data.skills.map((skill) => ({
-        ...skill,
-        skill_id: skill.skill_id ? String(skill.skill_id) : undefined,
-      })),
+      skills: data.skills.map((skill) => {
+        const legacyFieldFallback = skill.id ? "legacy field" : "";
+        return {
+          ...skill,
+          skill_id: skill.skill_id ? String(skill.skill_id) : undefined,
+          scope_include: skill.scope_include || legacyFieldFallback,
+          l1_anchor: skill.l1_anchor || legacyFieldFallback,
+          l2_anchor: skill.l2_anchor || legacyFieldFallback,
+          l3_anchor: skill.l3_anchor || legacyFieldFallback,
+          l4_anchor: skill.l4_anchor || legacyFieldFallback,
+          l5_anchor: skill.l5_anchor || legacyFieldFallback,
+        };
+      }),
     });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Check the assessment fields.");

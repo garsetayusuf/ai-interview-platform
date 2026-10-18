@@ -24,6 +24,7 @@ class AssessmentSkill < ApplicationRecord
   # without Rails prefixing it with the humanised attribute name.
   def taxonomy_identity_is_present
     return if is_custom
+    return if persisted? && skill_id.blank? && attribute_in_database(:skill_id).blank?
 
     errors.add(:base, 'Skill id is required') if skill_id.blank?
     return if skill_id.to_s.length <= SKILL_ID_MAX_LENGTH
@@ -32,13 +33,16 @@ class AssessmentSkill < ApplicationRecord
   end
 
   def scope_is_present
+    return if persisted? && scope_include.blank? && attribute_in_database(:scope_include).blank?
     return if scope_include.present?
 
     errors.add(:base, 'Skill scope is required')
   end
 
   def anchors_are_complete
-    return if ANCHOR_FIELDS.all? { |field| self[field].present? }
+    missing = ANCHOR_FIELDS.select { |field| self[field].blank? }
+    return if missing.empty?
+    return if persisted? && missing.all? { |field| attribute_in_database(field).blank? }
 
     errors.add(:base, 'Skill anchors L1-L5 are required')
   end
