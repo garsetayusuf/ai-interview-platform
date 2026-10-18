@@ -73,7 +73,7 @@ RSpec.describe 'Tenant authorization boundaries', type: :request do
       get "/api/v1/portfolios/#{owner_portfolio.id}/fitgap/#{owner_vacancy.id}", headers: foreign_headers
 
       expect(response).to have_http_status(:not_found)
-      expect(response.body).not_to include(owner_report.id.to_s)
+      expect(response.body).not_to include('skill_comparisons')
     end
 
     it 'denies a foreign tenant from regenerating a report or enqueueing work' do
