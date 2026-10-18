@@ -20,13 +20,19 @@ module Portfolios
         generation_status: 'pending'
       )
 
-      portfolio.update!(generation_status: 'generating')
+      return portfolio if portfolio.complete? || portfolio.generating?
 
-      prompt   = build_prompt
-      response = @gemini_client.generate_content(prompt, temperature: 0.2)
+      portfolio.with_lock do
+        return portfolio if portfolio.complete? || portfolio.generating?
 
-      save_skills(portfolio, response)
-      portfolio.update!(generation_status: 'complete', generated_at: Time.current)
+        portfolio.update!(generation_status: 'generating')
+
+        prompt   = build_prompt
+        response = @gemini_client.generate_content(prompt, temperature: 0.2)
+
+        save_skills(portfolio, response)
+        portfolio.update!(generation_status: 'complete', generated_at: Time.current)
+      end
 
       Rails.logger.info("[N10] Portfolio generated for session #{@session.id}")
       portfolio
@@ -153,32 +159,49 @@ module Portfolios
 
     def save_skills(portfolio, response)
       data = ResponseValidator.new(response).call
-
-      # Validation completes before replacement so malformed output cannot erase a trusted portfolio.
-      portfolio.portfolio_skills.destroy_all
-
-      (data['configured_skills'] || []).each do |skill_data|
-        portfolio.portfolio_skills.create!(
-          skill_id:           skill_data['skill_id'],
-          skill_label:        skill_data['skill_label'],
-          is_discovered:      false,
-          ai_level:           skill_data['level'],
-          ai_confidence:      skill_data['confidence'],
-          evidence:           Array(skill_data['evidence']).first(3),
-          competency_summary: skill_data['competency_summary']
+      existing = portfolio.portfolio_skills.includes(:assessor_override).index_by do |skill|
+        skill_identity(
+          skill_id: skill.skill_id,
+          skill_label: skill.skill_label,
+          discovered: skill.is_discovered
         )
       end
 
-      (data['discovered_skills'] || []).each do |skill_data|
-        portfolio.portfolio_skills.create!(
-          skill_id:           nil,
+      persist_skill = lambda do |skill_data, discovered|
+        skill = existing.delete(
+          skill_identity(
+            skill_id: skill_data['skill_id'],
+            skill_label: skill_data['skill_label'],
+            discovered:
+          )
+        ) || portfolio.portfolio_skills.build
+
+        skill.assign_attributes(
+          skill_id:           discovered ? nil : skill_data['skill_id'],
           skill_label:        skill_data['skill_label'],
-          is_discovered:      true,
+          is_discovered:      discovered,
           ai_level:           skill_data['level'],
           ai_confidence:      skill_data['confidence'],
           evidence:           Array(skill_data['evidence']).first(3),
           competency_summary: skill_data['competency_summary']
         )
+        skill.save!
+        skill.assessor_override&.update!(ai_level: skill.ai_level)
+      end
+
+      Array(data['configured_skills']).each { |skill| persist_skill.call(skill, false) }
+      Array(data['discovered_skills']).each { |skill| persist_skill.call(skill, true) }
+
+      existing.values.each do |skill|
+        skill.destroy! unless skill.assessor_override
+      end
+    end
+
+    def skill_identity(skill_id:, skill_label:, discovered:)
+      if discovered
+        "discovered:#{skill_label.to_s.downcase}"
+      else
+        "configured:#{skill_id}"
       end
     end
   end

@@ -66,4 +66,95 @@ RSpec.describe Portfolios::Generator do
     expect(portfolio).to be_complete
     expect(portfolio.portfolio_skills).to be_empty
   end
+  it 'preserves an assessor override when regenerating the same skill' do
+    portfolio = create(:portfolio, organization:, session:, generation_status: 'failed')
+    skill = create(:portfolio_skill, portfolio:, skill_id: 'ruby', skill_label: 'Ruby', ai_level: 3)
+    create(:assessor_override, portfolio_skill: skill, override_level: 4)
+    allow(gemini_client).to receive(:generate_content).and_return(
+      {
+        'configured_skills' => [
+          {
+            'skill_id' => 'ruby',
+            'skill_label' => 'Ruby',
+            'level' => 5,
+            'confidence' => 'high',
+            'evidence' => ['Synthetic regenerated evidence.'],
+            'competency_summary' => 'Synthetic regenerated summary.'
+          }
+        ],
+        'discovered_skills' => []
+      }
+    )
+
+    described_class.new(session:, gemini_client:).call
+
+    skill.reload
+    expect(skill.ai_level).to eq(5)
+    expect(skill.assessor_override.override_level).to eq(4)
+  end
+
+  it 'preserves the prior portfolio and fit-gap report when regeneration is rejected' do
+    portfolio = create(:portfolio, organization:, session:, generation_status: 'failed')
+    skill = create(:portfolio_skill, portfolio:, skill_id: 'ruby', skill_label: 'Ruby', ai_level: 3)
+    vacancy = create(:vacancy, organization:)
+    report = create(:fit_gap_report, portfolio:, vacancy:, skill_comparisons: [{ 'result' => 'match' }])
+    allow(gemini_client).to receive(:generate_content).and_return(
+      {
+        'configured_skills' => [
+          {
+            'skill_id' => 'ruby',
+            'skill_label' => 'Ruby',
+            'level' => 'invalid',
+            'confidence' => 'high',
+            'evidence' => ['Synthetic invalid evidence.'],
+            'competency_summary' => 'Synthetic invalid summary.'
+          }
+        ],
+        'discovered_skills' => []
+      }
+    )
+
+    result = described_class.new(session:, gemini_client:).call
+
+    expect(result).to be_failed
+    expect(skill.reload.ai_level).to eq(3)
+    expect(FitGapReport.exists?(report.id)).to be(true)
+    expect(report.reload.skill_comparisons).to eq([{ 'result' => 'match' }])
+  end
+
+  it 'does not invoke the provider for a completed duplicate generation' do
+    allow(gemini_client).to receive(:generate_content).and_return(
+      {
+        'configured_skills' => [
+          {
+            'skill_id' => 'ruby',
+            'skill_label' => 'Ruby',
+            'level' => 3,
+            'confidence' => 'high',
+            'evidence' => ['Synthetic evidence.'],
+            'competency_summary' => 'Synthetic summary.'
+          }
+        ],
+        'discovered_skills' => []
+      }
+    )
+
+    first = described_class.new(session:, gemini_client:).call
+    second = described_class.new(session:, gemini_client:).call
+
+    expect(first.id).to eq(second.id)
+    expect(gemini_client).to have_received(:generate_content).once
+    expect(second.portfolio_skills.count).to eq(1)
+  end
+
+  it 'does not invoke the provider while another generation is in progress' do
+    portfolio = create(:portfolio, organization:, session:, generation_status: 'generating')
+
+    expect(gemini_client).not_to receive(:generate_content)
+
+    result = described_class.new(session:, gemini_client:).call
+
+    expect(result.id).to eq(portfolio.id)
+    expect(result).to be_generating
+  end
 end
