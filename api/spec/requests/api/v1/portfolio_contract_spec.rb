@@ -197,6 +197,31 @@ RSpec.describe 'Portfolio and fit-gap API contracts', type: :request do
     end
   end
 
+  describe 'GET /api/v1/portfolios/:id/export' do
+    it 'carries the recorded consent beside the portfolio' do
+      session.update!(consent_accepted_at: Time.zone.parse('2026-10-18 09:00:00'), consent_version: 'v1')
+
+      get "/api/v1/portfolios/#{portfolio.id}/export", params: { format: 'json' }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      consent = JSON.parse(response.body).fetch('consent')
+      expect(consent.fetch('version')).to eq('v1')
+      expect(consent.fetch('accepted_at')).to be_present
+      expect(consent.fetch('declined_at')).to be_nil
+    end
+
+    it 'reports a decline rather than pretending consent exists' do
+      session.update!(consent_declined_at: Time.current)
+
+      get "/api/v1/portfolios/#{portfolio.id}/export", params: { format: 'json' }, headers: headers
+
+      expect(response).to have_http_status(:ok)
+      consent = JSON.parse(response.body).fetch('consent')
+      expect(consent.fetch('accepted_at')).to be_nil
+      expect(consent.fetch('declined_at')).to be_present
+    end
+  end
+
   describe 'POST /api/v1/portfolio_skills/:id/override' do
     it 'queues regeneration without destroying the stored comparison' do
       portfolio.update!(generation_status: 'complete')

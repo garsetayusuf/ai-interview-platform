@@ -230,10 +230,21 @@ module Api
         report.generated_at >= portfolio.generated_at
       end
 
+      def consent_export_json(session)
+        {
+          accepted_at: session.consent_accepted_at,
+          version:     session.consent_version,
+          declined_at: session.consent_declined_at
+        }
+      end
+
       def build_export_json(portfolio, vacancy_id = nil)
         data = {
           exported_at: Time.current.iso8601,
-          portfolio:   portfolio_json(portfolio)
+          portfolio:   portfolio_json(portfolio),
+          # A hiring decision can be traced back to the consent that was recorded
+          # for the session this portfolio belongs to.
+          consent:     consent_export_json(portfolio.session)
         }
         if vacancy_id.present?
           report = Authorization::PortfolioAccess.find_report(

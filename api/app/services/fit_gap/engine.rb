@@ -158,7 +158,8 @@ module FitGap
         data = response.is_a?(Hash) ? response : JSON.parse(response)
         { culture: data['culture_narrative'], overall: data['overall_narrative'] }
       rescue => e
-        Rails.logger.error("[N13] Narrative generation failed: #{e.message}")
+        # The message can quote the prompt or the raw provider response.
+        Rails.logger.error("[N13] Narrative generation failed: #{e.class}")
         { culture: nil, overall: generate_fallback_narrative(skill_comparisons) }
       end
     end

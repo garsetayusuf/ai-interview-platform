@@ -96,7 +96,7 @@ class CoverageAnalyzerWorker
 
     scope.each do |map|
       map.update!(state: 'covered', last_signal: 'Auto-advanced: outside context window with sufficient probes')
-      Rails.logger.info("[N7] Auto-advanced #{map.skill_label} to covered (probe_count=#{map.probe_count})")
+      Rails.logger.info("[N7] Auto-advanced coverage map #{map.id} to covered (probe_count=#{map.probe_count})")
     end
   end
 

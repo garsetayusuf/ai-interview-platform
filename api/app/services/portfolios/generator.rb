@@ -42,7 +42,9 @@ module Portfolios
       portfolio
     rescue => e
       portfolio&.update!(generation_status: 'failed', generation_error: e.message)
-      Rails.logger.error("[N10] Portfolio generation failed for session #{@session.id}: #{e.class} #{e.message}")
+      # Transport and provider errors can quote the prompt or the raw response, so
+      # only the class is logged.
+      Rails.logger.error("[N10] Portfolio generation failed for session #{@session.id}: #{e.class}")
       raise
     end
 
