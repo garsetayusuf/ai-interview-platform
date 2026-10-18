@@ -19,11 +19,10 @@ module Portfolios
         candidate_id:      @session.candidate_id,
         generation_status: 'pending'
       )
-
-      return portfolio if portfolio.complete? || portfolio.generating?
+      return portfolio if (portfolio.complete? && portfolio.generation_error.blank?) || portfolio.generating?
 
       portfolio.with_lock do
-        return portfolio if portfolio.complete? || portfolio.generating?
+        return portfolio if (portfolio.complete? && portfolio.generation_error.blank?) || portfolio.generating?
 
         portfolio.update!(generation_status: 'generating')
 

@@ -7,7 +7,22 @@ RSpec.describe Portfolios::Generator do
   let(:assessment) { create(:assessment, organization:) }
   let(:session) { create(:session, organization:, assessment:, status: 'ended') }
   let(:gemini_client) { instance_double(Gemini::HttpClient) }
+  it 'marks a stale complete portfolio failed when the provider errors during regeneration' do
+    portfolio = create(
+      :portfolio,
+      organization:,
+      session:,
+      generation_status: 'complete',
+      generation_error: 'API returned 503'
+    )
+    allow(gemini_client).to receive(:generate_content)
+      .and_raise(Gemini::HttpClient::ApiError.new('API returned 503', status: 503))
 
+    expect { described_class.new(session:, gemini_client:).call }
+      .to raise_error(Gemini::HttpClient::ApiError, 'API returned 503')
+    expect(portfolio.reload).to be_failed
+    expect(portfolio.generation_error).to eq('API returned 503')
+  end
   it 'persists numeric levels and evidence from a valid response' do
     allow(gemini_client).to receive(:generate_content).and_return(
       {
