@@ -118,12 +118,12 @@ describe("PortfolioPage run fit/gap control", () => {
         await renderWith(VACANCIES);
 
         expect(runButton()).toBeDisabled();
-        expect(screen.getByRole("status")).toHaveTextContent("Choose a vacancy to compare");
+        expect(within(screen.getByTestId("portfolio-action-bar")).getByRole("status")).toHaveTextContent("Choose a vacancy to compare");
 
         await selectVacancy("Backend Engineer");
 
         await waitFor(() => expect(runButton()).toBeEnabled());
-        expect(screen.getByRole("status")).toHaveTextContent(
+        expect(within(screen.getByTestId("portfolio-action-bar")).getByRole("status")).toHaveTextContent(
             "A comparison will be generated when you open the report."
         );
         expect(compareSelect()).toHaveAccessibleName("Compare against vacancy, 1 available");
@@ -133,7 +133,7 @@ describe("PortfolioPage run fit/gap control", () => {
         await renderWith([]);
 
         expect(runButton()).toBeDisabled();
-        expect(screen.getByRole("status")).toHaveTextContent(
+        expect(within(screen.getByTestId("portfolio-action-bar")).getByRole("status")).toHaveTextContent(
             "No vacancies yet. Create one to compare this portfolio."
         );
         expect(compareSelect()).toHaveAccessibleName("Compare against vacancy, 0 available");
@@ -163,7 +163,7 @@ describe("PortfolioPage run fit/gap control", () => {
         await selectVacancy("Backend Engineer");
 
         const openExisting = await screen.findByRole("button", { name: "Open existing report" });
-        expect(screen.getByRole("status")).toHaveTextContent("Report generated");
+        expect(within(screen.getByTestId("portfolio-action-bar")).getByRole("status")).toHaveTextContent("Report generated");
 
         fireEvent.click(openExisting);
         expect(navigateSpy).toHaveBeenCalledWith("/assessments/1/sessions/2/fitgap/2");
@@ -179,7 +179,7 @@ describe("PortfolioPage run fit/gap control", () => {
         renderPage();
         await screen.findByRole("heading", { name: "Portfolio Results" });
 
-        expect(screen.getByRole("status")).toHaveTextContent(
+        expect(within(screen.getByTestId("portfolio-action-bar")).getByRole("status")).toHaveTextContent(
             "The comparison can run once generation finishes."
         );
 

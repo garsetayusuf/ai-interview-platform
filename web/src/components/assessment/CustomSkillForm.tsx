@@ -66,6 +66,8 @@ export default function CustomSkillForm({ index, form }: CustomSkillFormProps) {
       <div className="space-y-1.5">
         <Label>Expected level</Label>
         <LevelRadio
+          name={`custom-skill-${index}`}
+          label={`Expected level for custom skill ${index + 1}`}
           value={expectedLevel ?? 3}
           onChange={(v) => setValue(`skills.${index}.expected_level`, v)}
         />

@@ -82,6 +82,7 @@ export default function ComparisonTable({ comparisons }: ComparisonTableProps) {
 
   return (
     <div className="space-y-3">
+      <p className="text-xs text-muted-foreground sm:hidden">Swipe to see all columns</p>
       <div className="overflow-x-auto rounded-lg border">
         <table className="w-full text-sm">
           <caption className="sr-only">
@@ -90,8 +91,8 @@ export default function ComparisonTable({ comparisons }: ComparisonTableProps) {
           <thead>
             <tr className="border-b bg-muted/50">
               <th scope="col" className="text-left px-4 py-2.5 font-medium">Skill</th>
-              <th scope="col" className="text-center px-4 py-2.5 font-medium">Required</th>
-              <th scope="col" className="text-center px-4 py-2.5 font-medium">Candidate</th>
+              <th scope="col" className="text-center px-4 py-2.5 font-medium w-20 whitespace-nowrap">Required</th>
+              <th scope="col" className="text-center px-4 py-2.5 font-medium w-20 whitespace-nowrap">Candidate</th>
               <th scope="col" className="text-center px-4 py-2.5 font-medium">Result</th>
               <th scope="col" className="text-center px-4 py-2.5 font-medium">Evidence state</th>
             </tr>
@@ -100,10 +101,10 @@ export default function ComparisonTable({ comparisons }: ComparisonTableProps) {
             {comparisons.map((c, i) => (
               <tr key={i} className="border-b last:border-0">
                 <td className="px-4 py-2.5">{c.skill_label}</td>
-                <td className="px-4 py-2.5 text-center text-muted-foreground">
+                <td className="px-4 py-2.5 text-center text-muted-foreground w-20 whitespace-nowrap">
                   {c.required_level != null ? LEVEL_LABELS[c.required_level] : "—"}
                 </td>
-                <td className="px-4 py-2.5 text-center">
+                <td className="px-4 py-2.5 text-center w-20 whitespace-nowrap">
                   {c.candidate_level != null ? (
                     <span>
                       {LEVEL_LABELS[c.candidate_level]}

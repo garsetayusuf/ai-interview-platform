@@ -24,7 +24,7 @@ import {
   COVERAGE_STATE_WIDTH,
   COVERAGE_STATE_COLOR,
 } from "@/utils/constants";
-import { ArrowLeft, CheckCircle, Clock, Radio, Zap } from "lucide-react";
+import { ArrowLeft, CheckCircle, Clock, Radio, RefreshCw, Zap } from "lucide-react";
 import type { TranscriptTurn } from "@/types";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +56,9 @@ export default function LiveMonitorPage() {
   const [assessmentName, setAssessmentName] = useState<string>("");
   const [transcript, setTranscript] = useState<TranscriptTurn[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [pollError, setPollError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [ending, setEnding] = useState(false);
   const [endError, setEndError] = useState(false);
   const [sessionActive, setSessionActive] = useState(true);
@@ -75,6 +78,7 @@ export default function LiveMonitorPage() {
 
   // Initial load
   useEffect(() => {
+    setLoadError(false);
     Promise.all([
       sessionsApi.get(Number(sessionId)),
       sessionsApi.getTranscript(Number(sessionId)),
@@ -91,8 +95,9 @@ export default function LiveMonitorPage() {
           lastTurnRef.current = turns[turns.length - 1].turn_number;
         }
       })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [sessionId]);
+  }, [sessionId, retryCount]);
 
   // Poll transcript every 3s while session is active
   const fetchNewTurns = useCallback(async () => {
@@ -101,12 +106,14 @@ export default function LiveMonitorPage() {
         Number(sessionId),
         lastTurnRef.current + 1
       );
+      setPollError(false);
       if (res.data.turns.length > 0) {
         setTranscript((prev) => [...prev, ...res.data.turns].slice(-10));
         lastTurnRef.current = res.data.turns[res.data.turns.length - 1].turn_number;
       }
     } catch {
-      // transient poll failure — silently skip, retry on next interval
+      // Say so instead of silently freezing: the next tick retries.
+      setPollError(true);
     }
   }, [sessionId]);
 
@@ -137,16 +144,38 @@ export default function LiveMonitorPage() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to={`/assessments/${id}/invite`} aria-label="Back to invitations" className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <h1 className="text-lg font-semibold">Live Monitor</h1>
+        </div>
+        <div className="border border-destructive/40 rounded-lg p-6 text-center space-y-3" role="alert">
+          <p className="text-sm text-destructive">We could not load this session.</p>
+          <p className="text-xs text-muted-foreground">
+            The interview itself is unaffected. Retry to follow it again.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setRetryCount((count) => count + 1)}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const configuredSkills = coverageMap?.skills ?? [];
   const discoveredSkills = coverageMap?.discovered ?? [];
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="space-y-1">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="space-y-1 min-w-0">
           <div className="flex items-center gap-2">
-            <Link to={`/assessments/${id}/invite`} className="text-muted-foreground hover:text-foreground">
+            <Link to={`/assessments/${id}/invite`} aria-label="Back to invitations" className="text-muted-foreground hover:text-foreground">
               <ArrowLeft className="h-4 w-4" />
             </Link>
             <h1 className="text-lg font-semibold">Live Monitor</h1>
@@ -156,17 +185,30 @@ export default function LiveMonitorPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {startedAt && sessionActive && <ElapsedTimer startedAt={startedAt} />}
-          <span className={cn(
-            "flex items-center gap-1 text-xs",
-            isConnected ? "text-green-600" : "text-muted-foreground"
-          )}>
+          <span
+            role="status"
+            className={cn(
+              "flex items-center gap-1 text-xs",
+              isConnected ? "text-green-600" : "text-muted-foreground"
+            )}
+          >
             <Radio className="h-3 w-3" />
             {isConnected ? "Live" : "Reconnecting..."}
           </span>
         </div>
       </div>
+
+      {pollError && (
+        <div
+          className="border rounded-lg p-3 text-xs text-muted-foreground"
+          role="status"
+          aria-live="polite"
+        >
+          Transcript updates are paused while the connection recovers. The turns below are still valid.
+        </div>
+      )}
 
       {/* Session ended banner */}
       {sessionEnded && (
@@ -201,7 +243,7 @@ export default function LiveMonitorPage() {
             <p className="text-sm text-muted-foreground">Waiting for interview to begin...</p>
           ) : (
             configuredSkills.map((skill) => (
-              <div key={skill.id ?? skill.skill_label} className="space-y-1.5">
+              <div key={skill.id ?? skill.skill_label} className="space-y-1.5" aria-live="polite">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium">{skill.skill_label}</span>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -234,7 +276,7 @@ export default function LiveMonitorPage() {
                   Discovered
                 </p>
                 {discoveredSkills.map((skill) => (
-                  <div key={skill.id ?? skill.skill_label} className="space-y-1.5">
+                  <div key={skill.id ?? skill.skill_label} className="space-y-1.5" aria-live="polite">
                     <div className="flex items-center justify-between text-sm">
                       <span className="flex items-center gap-1">
                         <Zap className="h-3 w-3 text-amber-500" />
@@ -271,6 +313,7 @@ export default function LiveMonitorPage() {
           <CardTitle className="text-sm">Live Transcript</CardTitle>
         </CardHeader>
         <CardContent>
+          <div role="log" aria-live="polite" aria-label="Live transcript">
           {transcript.length === 0 ? (
             <p className="text-sm text-muted-foreground">No transcript yet.</p>
           ) : (
@@ -280,17 +323,21 @@ export default function LiveMonitorPage() {
               ))}
             </div>
           )}
+          </div>
         </CardContent>
       </Card>
 
       {endError && (
-        <div className="border border-destructive/40 rounded-lg p-3 text-sm text-destructive">
+        <div
+          className="border border-destructive/40 rounded-lg p-3 text-sm text-destructive"
+          role="alert"
+        >
           Failed to end session. Please try again.
         </div>
       )}
 
       {/* End Session */}
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {sessionActive ? (
           <AlertDialog>
             <AlertDialogTrigger asChild>

@@ -51,7 +51,10 @@ export default function AssessmentListPage() {
       </div>
 
       {error && (
-        <div className="border border-destructive/40 rounded-lg p-4 text-sm text-destructive">
+        <div
+          className="border border-destructive/40 rounded-lg p-4 text-sm text-destructive"
+          role="alert"
+        >
           Failed to load assessments. Please refresh the page.
         </div>
       )}
@@ -72,8 +75,17 @@ export default function AssessmentListPage() {
           {assessments.map((a) => (
             <Card
               key={a.id}
-              className="cursor-pointer hover:border-primary/40 transition-colors"
+              role="button"
+              tabIndex={0}
+              aria-label={`Open ${a.name}`}
+              className="cursor-pointer hover:border-primary/40 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               onClick={() => navigate(`/assessments/${a.id}/invite`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  navigate(`/assessments/${a.id}/invite`);
+                }
+              }}
             >
               <CardContent className="py-3 px-4 flex items-center justify-between">
                 <div>

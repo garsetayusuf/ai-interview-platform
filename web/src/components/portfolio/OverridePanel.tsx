@@ -74,7 +74,12 @@ export default function OverridePanel({ skill, existingOverride, onSaved }: Over
 
       <div className="space-y-1.5">
         <Label className="text-sm">Your rating:</Label>
-        <LevelRadio value={overrideLevel} onChange={setOverrideLevel} />
+        <LevelRadio
+          name={`override-${skill.id}`}
+          label={`Your rating for ${skill.skill_label}`}
+          value={overrideLevel}
+          onChange={setOverrideLevel}
+        />
       </div>
 
       <div className="space-y-1.5">

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,8 +14,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { assessmentsApi } from "@/services/assessments";
+import { apiErrorMessage } from "@/lib/httpError";
 import { LEVEL_LABELS } from "@/utils/constants";
-import { ArrowLeft, Copy, Check, Eye, Pencil, Clock, Plus, UserRound } from "lucide-react";
+import { ArrowLeft, Copy, Check, Eye, Pencil, Clock, Plus, RefreshCw, UserRound } from "lucide-react";
 import type { Assessment, Session } from "@/types";
 
 function SessionRow({
@@ -53,7 +54,7 @@ function SessionRow({
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-2">
         {isPending && (
           <span className="flex items-center gap-1 text-xs text-amber-600">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
@@ -85,6 +86,7 @@ function SessionRow({
               variant="ghost"
               size="sm"
               className="h-7 px-2 text-xs"
+              aria-label={`Copy invite link for ${displayName}`}
               onClick={() => onCopy(session.id)}
             >
               {copiedId === session.id ? (
@@ -126,12 +128,17 @@ export default function AssessmentInvitePage() {
   const [assessment, setAssessment] = useState<Assessment | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [creatingSession, setCreatingSession] = useState(false);
   const [newSession, setNewSession] = useState<Session | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [newSessionCopied, setNewSessionCopied] = useState(false);
+  const [copyFailureUrl, setCopyFailureUrl] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [candidateNameInput, setCandidateNameInput] = useState("");
+  const inviteUrlRef = useRef<HTMLSpanElement>(null);
 
   const loadSessions = useCallback(async () => {
     const res = await assessmentsApi.getSessions(Number(id));
@@ -139,53 +146,96 @@ export default function AssessmentInvitePage() {
   }, [id]);
 
   useEffect(() => {
+    setLoadError(false);
     Promise.all([
       assessmentsApi.get(Number(id)),
       assessmentsApi.getSessions(Number(id)),
-    ]).then(([aRes, sRes]) => {
-      setAssessment(aRes.data.assessment);
-      setSessions(sRes.data.sessions);
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [id]);
+    ])
+      .then(([aRes, sRes]) => {
+        setAssessment(aRes.data.assessment);
+        setSessions(sRes.data.sessions);
+      })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false));
+  }, [id, retryCount]);
 
   // Poll while any session is live or pending
   useEffect(() => {
     const hasActive = sessions.some((s) => s.status !== "ended");
     if (!hasActive) return;
-    const interval = setInterval(loadSessions, 5000);
+    const interval = setInterval(() => {
+      loadSessions().catch(() => {
+        // A failed poll must not blank the list; the next tick retries.
+      });
+    }, 5000);
     return () => clearInterval(interval);
   }, [sessions, loadSessions]);
 
   const openInviteDialog = () => {
     setCandidateNameInput("");
+    setInviteError(null);
     setShowInviteDialog(true);
   };
 
   const handleInviteCandidate = async () => {
     setCreatingSession(true);
-    setShowInviteDialog(false);
+    setInviteError(null);
     setNewSession(null);
     try {
       const res = await assessmentsApi.createSession(Number(id), candidateNameInput.trim() || undefined);
       const created = res.data.session;
       setNewSession(created);
       setSessions((prev) => [created, ...prev]);
+      setShowInviteDialog(false);
+    } catch (e) {
+      // Keep the dialog open so the input is not lost, and say what failed.
+      setInviteError(apiErrorMessage(e, "Could not create the invite link. Please try again."));
     } finally {
       setCreatingSession(false);
     }
   };
 
-  const copyLink = (session: Session, id: number) => {
-    navigator.clipboard.writeText(session.invite_url);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+  const writeToClipboard = async (url: string): Promise<boolean> => {
+    try {
+      if (!navigator.clipboard?.writeText) return false;
+      await navigator.clipboard.writeText(url);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
-  const copyNewSessionLink = () => {
+  const copyLink = async (session: Session, id: number) => {
+    setCopyFailureUrl(null);
+    if (await writeToClipboard(session.invite_url)) {
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+      return;
+    }
+
+    // No clipboard access: show the link so it can still be copied by hand.
+    setCopyFailureUrl(session.invite_url);
+  };
+
+  const copyNewSessionLink = async () => {
     if (!newSession?.invite_url) return;
-    navigator.clipboard.writeText(newSession.invite_url);
-    setNewSessionCopied(true);
-    setTimeout(() => setNewSessionCopied(false), 2000);
+    setCopyFailureUrl(null);
+
+    if (await writeToClipboard(newSession.invite_url)) {
+      setNewSessionCopied(true);
+      setTimeout(() => setNewSessionCopied(false), 2000);
+      return;
+    }
+
+    const node = inviteUrlRef.current;
+    if (node) {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    setCopyFailureUrl(newSession.invite_url);
   };
 
   if (loading) {
@@ -198,16 +248,36 @@ export default function AssessmentInvitePage() {
     );
   }
 
+  if (loadError) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to="/assessments" aria-label="Back to assessments" className="text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <span className="text-sm font-medium">Invitations</span>
+        </div>
+        <div className="border border-destructive/40 rounded-lg p-6 text-center space-y-3" role="alert">
+          <p className="text-sm text-destructive">We could not load this assessment's invitations.</p>
+          <p className="text-xs text-muted-foreground">No candidate link changed. Retry to load it again.</p>
+          <Button variant="outline" size="sm" onClick={() => setRetryCount((count) => count + 1)}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-2">
-          <Link to="/assessments" className="text-muted-foreground hover:text-foreground">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Link to="/assessments" aria-label="Back to assessments" className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
           </Link>
-          <div>
-            <h1 className="text-lg font-semibold">{assessment?.name ?? "—"}</h1>
+          <div className="min-w-0">
+            <h1 className="text-lg font-semibold truncate">{assessment?.name ?? "—"}</h1>
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
               <Clock className="h-3 w-3" />
               {assessment?.time_limit_min} min · {assessment?.skills?.length ?? 0} skills
@@ -215,7 +285,7 @@ export default function AssessmentInvitePage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => navigate(`/assessments/${id}/edit`)}>
             <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
           </Button>
@@ -243,10 +313,15 @@ export default function AssessmentInvitePage() {
               autoFocus
             />
             <p className="text-xs text-muted-foreground">Optional — helps you identify this session later.</p>
+            {inviteError && (
+              <p className="text-xs text-destructive" role="alert">{inviteError}</p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowInviteDialog(false)}>Cancel</Button>
-            <Button onClick={handleInviteCandidate}>Create Link</Button>
+            <Button onClick={handleInviteCandidate} disabled={creatingSession}>
+              {creatingSession ? "Creating..." : "Create Link"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -261,11 +336,20 @@ export default function AssessmentInvitePage() {
                 : <>New invite link ready — share with your candidate:</>}
             </p>
             <div className="flex items-center gap-2 border rounded-md px-3 py-2 bg-white">
-              <span className="flex-1 text-sm font-mono truncate text-muted-foreground">
+              <span
+                ref={inviteUrlRef}
+                className="flex-1 text-sm font-mono truncate text-muted-foreground select-all"
+              >
                 {newSession.invite_url}
               </span>
             </div>
-            <Button variant="outline" size="sm" onClick={copyNewSessionLink} className="w-full">
+            <Button
+              variant="outline"
+              size="sm"
+              aria-label="Copy invite link"
+              onClick={copyNewSessionLink}
+              className="w-full"
+            >
               {newSessionCopied ? (
                 <><Check className="h-3.5 w-3.5 mr-1.5" /> Copied!</>
               ) : (
@@ -274,6 +358,15 @@ export default function AssessmentInvitePage() {
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {copyFailureUrl && (
+        <div className="border border-destructive/40 rounded-lg p-3 space-y-1 text-sm" role="alert">
+          <p className="text-destructive">
+            This browser would not copy automatically. The link is selected below — copy it manually.
+          </p>
+          <p className="font-mono text-xs break-all select-all">{copyFailureUrl}</p>
+        </div>
       )}
 
       <Separator />
@@ -310,7 +403,7 @@ export default function AssessmentInvitePage() {
                   assessmentId={id!}
                   onCopy={(sid) => {
                     const s = sessions.find((x) => x.id === sid);
-                    if (s) copyLink(s, sid);
+                    if (s) void copyLink(s, sid);
                   }}
                   copiedId={copiedId}
                 />

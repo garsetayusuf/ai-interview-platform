@@ -43,6 +43,7 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
       <div className="flex items-center gap-2 px-3 py-2.5">
         <button
           type="button"
+          aria-label={`Reorder ${skillLabel}`}
           className="cursor-grab text-muted-foreground hover:text-foreground touch-none"
           {...attributes}
           {...listeners}
@@ -79,6 +80,8 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
             <button
               type="button"
               onClick={() => setAnchorsOpen((o) => !o)}
+              aria-expanded={anchorsOpen}
+              aria-controls={`anchors-${id}`}
               className="flex items-center gap-1 text-xs text-primary hover:underline"
             >
               {anchorsOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
@@ -86,7 +89,7 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
             </button>
 
             {anchorsOpen && (
-              <div className="text-xs text-muted-foreground space-y-1 bg-muted/50 rounded p-2">
+              <div id={`anchors-${id}`} className="text-xs text-muted-foreground space-y-1 bg-muted/50 rounded p-2">
                 {[1, 2, 3, 4, 5].map((level) => {
                   const anchor = skill?.[`l${level}_anchor` as keyof typeof skill] as string;
                   return anchor ? (
@@ -101,6 +104,8 @@ export default function SkillCard({ index, id, form, onRemove }: SkillCardProps)
             <div className="space-y-1.5">
               <span className="text-xs text-muted-foreground">Expected level:</span>
               <LevelRadio
+                name={`skill-${id}`}
+                label={`Expected level for ${skillLabel}`}
                 value={skill?.expected_level ?? 3}
                 onChange={(v) => form.setValue(`skills.${index}.expected_level`, v)}
               />

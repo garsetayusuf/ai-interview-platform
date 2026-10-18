@@ -453,7 +453,11 @@ export default function PortfolioPage() {
 
       {/* Generating state */}
       {generating && (
-        <div className="border rounded-lg p-12 text-center space-y-3">
+        <div
+          className="border rounded-lg p-12 text-center space-y-3"
+          role="status"
+          aria-live="polite"
+        >
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
           <div>
             <p className="font-medium">Generating portfolio...</p>

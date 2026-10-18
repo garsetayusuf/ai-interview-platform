@@ -28,13 +28,13 @@ export default function AssessorLayout() {
     <div className="min-h-screen flex flex-col bg-background">
       {/* Top header */}
       <header className="border-b bg-white sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link to="/assessments" className="flex items-center gap-2">
-              <LayoutDashboard className="h-5 w-5 text-primary" />
-              <span className="font-semibold text-sm">Rakamin AI Interview</span>
+        <div className="max-w-7xl mx-auto px-4 min-h-14 py-2 sm:h-14 sm:py-0 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex items-center gap-6 min-w-0">
+            <Link to="/assessments" className="flex items-center gap-2 min-w-0">
+              <LayoutDashboard className="h-5 w-5 text-primary shrink-0" />
+              <span className="font-semibold text-sm truncate">Rakamin AI Interview</span>
             </Link>
-            <nav className="flex items-center gap-1">
+            <nav aria-label="Primary" className="flex items-center gap-1 flex-wrap">
               {navItems.map(({ href, label, icon: Icon }) => (
                 <Link
                   key={href}
@@ -54,7 +54,7 @@ export default function AssessorLayout() {
           </div>
           <div className="flex items-center gap-3">
             {tenant.name && (
-              <span className="text-xs text-muted-foreground border rounded-full px-2.5 py-0.5">
+              <span className="hidden sm:inline-flex text-xs text-muted-foreground border rounded-full px-2.5 py-0.5">
                 Tenant: {tenant.name}
               </span>
             )}
