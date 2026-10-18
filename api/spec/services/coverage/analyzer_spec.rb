@@ -153,6 +153,25 @@ RSpec.describe Coverage::Analyzer do
     end
   end
 
+  describe 'identity matching' do
+    it 'matches a provider label to a configured skill when the provider uses a descriptive alias' do
+      add_skill(skill_id: 'synthetic-react', skill_label: 'Synthetic React Skill')
+      map = add_map(skill_id: 'synthetic-react', skill_label: 'Synthetic React Skill')
+      add_turns(['Tell me about frontend state.', 'I used React and Zustand.'])
+      capture_prompts(
+        { 'skill_updates' => [{ 'id' => 'react', 'new_state' => 'initiated', 'new_probe_count' => 1 }] }
+      )
+
+      result = analyzer.call
+
+      expect(result[:skill_updates].first).to include(
+        coverage_map_id: map.id,
+        skill_id: 'synthetic-react',
+        new_state: 'initiated'
+      )
+    end
+  end
+
   describe 'sad path' do
     it 'propagates a provider failure without touching the coverage map' do
       add_skill(skill_id: 'ruby', skill_label: 'Ruby')

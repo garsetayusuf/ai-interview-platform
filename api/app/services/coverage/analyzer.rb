@@ -167,8 +167,27 @@ module Coverage
     end
 
     def find_map(coverage_maps, id_or_label)
-      coverage_maps.find { |m| m.skill_id == id_or_label } ||
-        coverage_maps.find { |m| m.skill_label.downcase.gsub(/\s+/, '-') == id_or_label&.downcase }
+      return if id_or_label.blank?
+
+      exact_id = coverage_maps.find { |map| map.skill_id == id_or_label }
+      return exact_id if exact_id
+
+      needle = normalize_skill_key(id_or_label)
+      exact_label = coverage_maps.find { |map| normalize_skill_key(map.skill_label) == needle }
+      return exact_label if exact_label
+
+      needle_tokens = needle.split
+      return if needle_tokens.empty?
+
+      coverage_maps
+        .map { |map| [map, (needle_tokens & normalize_skill_key(map.skill_label).split).length] }
+        .select { |_map, overlap| overlap.positive? }
+        .max_by { |_map, overlap| overlap }
+        &.first
+    end
+
+    def normalize_skill_key(value)
+      value.to_s.downcase.gsub(/[^a-z0-9]+/, ' ').strip
     end
   end
 end
