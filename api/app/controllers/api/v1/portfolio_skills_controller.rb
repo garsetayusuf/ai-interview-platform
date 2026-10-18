@@ -38,11 +38,14 @@ module Api
 
       private
 
+      # An override invalidates every stored comparison for this portfolio. The
+      # engine upserts on (portfolio_id, vacancy_id), so the queued work overwrites
+      # each report in place and the last trustworthy version stays readable until
+      # its replacement lands.
       def regenerate_stale_fitgap_reports
         portfolio = @portfolio_skill.portfolio
-        FitGapReport.where(portfolio_id: portfolio.id).each do |report|
-          vacancy_id = report.vacancy_id
-          report.destroy
+
+        FitGapReport.where(portfolio_id: portfolio.id).pluck(:vacancy_id).each do |vacancy_id|
           FitGapGeneratorWorker.perform_async(portfolio.id, vacancy_id)
         end
       end

@@ -33,7 +33,7 @@ module Api
           SystemPromptGeneratorWorker.perform_async(assessment.id)
           json_response({ assessment:, system_prompt_generated: true }, :created)
         else
-          json_error(assessment.errors.full_messages.first, :unprocessable_entity)
+          json_error(validation_message(assessment), :unprocessable_entity)
         end
       end
 
@@ -43,7 +43,7 @@ module Api
           SystemPromptGeneratorWorker.perform_async(@assessment.id)
           json_response({ assessment: assessment_with_skills_json(@assessment), system_prompt_generated: true })
         else
-          json_error(@assessment.errors.full_messages.first, :unprocessable_entity)
+          json_error(validation_message(@assessment), :unprocessable_entity)
         end
       end
 
@@ -59,6 +59,15 @@ module Api
         @assessment = Assessment.find(params[:id])
       rescue ActiveRecord::RecordNotFound
         json_error("Assessment not found", :not_found)
+      end
+
+      # A nested skill's rule is reported on its own: wrapped in the parent's
+      # association prefix the client could not mirror the message.
+      def validation_message(assessment)
+        invalid_skill = assessment.assessment_skills.find { |skill| skill.errors.any? }
+        return invalid_skill.errors.full_messages.first if invalid_skill
+
+        assessment.errors.full_messages.first
       end
 
       def assessment_params

@@ -96,6 +96,65 @@ RSpec.describe FitGap::Engine do
     expect(high_comparison.fetch('candidate_level')).to eq(5)
   end
 
+  it 'matches a portfolio skill by folded label when the configured ids differ' do
+    vacancy.vacancy_skills.first.update!(skill_id: nil, skill_label: '  Ruby   Framework ')
+    create(:portfolio_skill, portfolio:, skill_id: 'legacy-ruby', skill_label: 'ruby framework', ai_level: 3)
+
+    comparison = described_class.new(portfolio:, vacancy:, gemini_client:).call.skill_comparisons.first
+
+    expect(comparison).to include(
+      'skill_label' => '  Ruby   Framework ',
+      'candidate_level' => 3,
+      'result' => 'gap',
+      'delta' => -1,
+      'candidate_level_source' => 'ai'
+    )
+  end
+
+  it 'reports an override on a skill this vacancy never asks about' do
+    skill = create(:portfolio_skill, portfolio:, skill_id: 'communication', skill_label: 'Communication', ai_level: 2)
+    create(:assessor_override, portfolio_skill: skill, override_level: 5)
+
+    report = described_class.new(portfolio:, vacancy:, gemini_client:).call
+
+    expect(report.override_context).to eq(
+      [
+        {
+          'skill_label'    => 'Communication',
+          'skill_id'       => 'communication',
+          'ai_level'       => 2,
+          'override_level' => 5
+        }
+      ]
+    )
+  end
+
+  it 'keeps the override context empty when every override belongs to a comparison' do
+    skill = create(:portfolio_skill, portfolio:, skill_id: 'ruby', skill_label: 'Ruby', ai_level: 3)
+    create(:assessor_override, portfolio_skill: skill, override_level: 4)
+
+    report = described_class.new(portfolio:, vacancy:, gemini_client:).call
+
+    expect(report.skill_comparisons.first).to include(
+      'candidate_level' => 4,
+      'is_override' => true,
+      'candidate_level_source' => 'assessor_override'
+    )
+    expect(report.override_context).to eq([])
+  end
+
+  it 'replaces the stored comparison in place so the report identity is stable' do
+    create(:portfolio_skill, portfolio:, skill_id: 'ruby', skill_label: 'Ruby', ai_level: 3)
+    engine = described_class.new(portfolio:, vacancy:, gemini_client:)
+
+    first = engine.call
+    second = described_class.new(portfolio:, vacancy:, gemini_client:).call
+
+    expect(second.id).to eq(first.id)
+    expect(FitGapReport.where(portfolio_id: portfolio.id, vacancy_id: vacancy.id).count).to eq(1)
+    expect(second.generated_at).to be >= first.generated_at
+  end
+
   it 'reports insufficient evidence when the skill was probed but never rated' do
     session.coverage_maps.create!(
       skill_id: 'ruby',

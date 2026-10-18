@@ -115,13 +115,15 @@ module Api
           return json_error("Portfolio is not ready (status: #{portfolio.generation_status})", :unprocessable_entity)
         end
 
-        # Return cached report if it exists and portfolio has no new overrides
+        # A stored report is only reusable while it is newer than the portfolio it
+        # summarises. An override or a regenerated portfolio makes it stale, so the
+        # comparison is queued again and the response says so.
         existing = Authorization::PortfolioAccess.find_report(
           portfolio_id: portfolio.id,
           vacancy_id: vacancy.id,
           tenant_id: current_tenant_id
         )
-        if existing
+        if existing && report_is_current?(existing, portfolio)
           return json_response(report: fit_gap_json(existing))
         end
 
@@ -213,10 +215,19 @@ module Api
           portfolio_id:      report.portfolio_id,
           vacancy_id:        report.vacancy_id,
           skill_comparisons: report.skill_comparisons,
+          override_context:  report.override_context,
           culture_narrative: report.culture_narrative,
           overall_narrative: report.overall_narrative,
           generated_at:      report.generated_at
         }
+      end
+
+      # True while the report is at least as new as the portfolio it was built from.
+      def report_is_current?(report, portfolio)
+        return false if report.generated_at.blank?
+        return true if portfolio.generated_at.blank?
+
+        report.generated_at >= portfolio.generated_at
       end
 
       def build_export_json(portfolio, vacancy_id = nil)

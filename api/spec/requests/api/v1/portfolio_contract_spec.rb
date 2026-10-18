@@ -89,6 +89,87 @@ RSpec.describe 'Portfolio and fit-gap API contracts', type: :request do
       expect(response).to have_http_status(:not_found)
     end
 
+    it 'exposes an override context list and defaults it to empty' do
+      create(
+        :fit_gap_report,
+        portfolio:,
+        vacancy:,
+        skill_comparisons: [{ 'skill_label' => 'Ruby', 'result' => 'gap' }],
+        override_context: [
+          {
+            'skill_label'    => 'Communication',
+            'skill_id'       => 'communication',
+            'ai_level'       => 2,
+            'override_level' => 5
+          }
+        ]
+      )
+
+      get "/api/v1/portfolios/#{portfolio.id}/fitgap/#{vacancy.id}", headers: headers
+
+      expect(response).to have_http_status(:ok)
+      report = JSON.parse(response.body).fetch('report')
+
+      expect(report.fetch('override_context')).to eq(
+        [
+          {
+            'skill_label'    => 'Communication',
+            'skill_id'       => 'communication',
+            'ai_level'       => 2,
+            'override_level' => 5
+          }
+        ]
+      )
+    end
+  end
+
+  describe 'POST /api/v1/portfolios/:id/fitgap' do
+    let(:stored_comparisons) { [{ 'skill_label' => 'Ruby', 'result' => 'gap' }] }
+
+    before { allow(FitGapGeneratorWorker).to receive(:perform_async) }
+
+    it 'queues regeneration instead of serving a report older than the portfolio' do
+      portfolio.update!(generation_status: 'complete', generated_at: 1.hour.ago)
+      create(:fit_gap_report, portfolio:, vacancy:, skill_comparisons: stored_comparisons, generated_at: 2.hours.ago)
+
+      post "/api/v1/portfolios/#{portfolio.id}/fitgap",
+           params:  { fitgap: { vacancy_id: vacancy.id } },
+           headers: headers,
+           as:      :json
+
+      expect(response).to have_http_status(:accepted)
+      expect(JSON.parse(response.body).fetch('status')).to eq('generating')
+      expect(FitGapGeneratorWorker).to have_received(:perform_async).with(portfolio.id, vacancy.id)
+    end
+
+    it 'serves the stored report while it is newer than the portfolio' do
+      portfolio.update!(generation_status: 'complete', generated_at: 2.hours.ago)
+      report = create(:fit_gap_report, portfolio:, vacancy:, skill_comparisons: stored_comparisons, generated_at: 1.hour.ago)
+
+      post "/api/v1/portfolios/#{portfolio.id}/fitgap",
+           params:  { fitgap: { vacancy_id: vacancy.id } },
+           headers: headers,
+           as:      :json
+
+      expect(response).to have_http_status(:ok)
+      expect(JSON.parse(response.body).fetch('report').fetch('id')).to eq(report.id)
+      expect(FitGapGeneratorWorker).not_to have_received(:perform_async)
+    end
+
+    it 'queues a comparison when nothing is stored yet' do
+      portfolio.update!(generation_status: 'complete')
+
+      post "/api/v1/portfolios/#{portfolio.id}/fitgap",
+           params:  { fitgap: { vacancy_id: vacancy.id } },
+           headers: headers,
+           as:      :json
+
+      expect(response).to have_http_status(:accepted)
+      expect(FitGapGeneratorWorker).to have_received(:perform_async).with(portfolio.id, vacancy.id)
+    end
+  end
+
+  describe 'POST /api/v1/portfolios/:id/regenerate_fitgap' do
     it 'keeps the current report readable while a replacement is queued' do
       portfolio.update!(generation_status: 'complete')
       report = create(
@@ -113,6 +194,31 @@ RSpec.describe 'Portfolio and fit-gap API contracts', type: :request do
 
       expect(response).to have_http_status(:ok)
       expect(JSON.parse(response.body).fetch('report').fetch('generated_at')).to be_present
+    end
+  end
+
+  describe 'POST /api/v1/portfolio_skills/:id/override' do
+    it 'queues regeneration without destroying the stored comparison' do
+      portfolio.update!(generation_status: 'complete')
+      skill = create(:portfolio_skill, portfolio:, skill_label: 'Ruby')
+      report = create(
+        :fit_gap_report,
+        portfolio:,
+        vacancy:,
+        skill_comparisons: [{ 'skill_label' => 'Ruby', 'result' => 'gap' }],
+        generated_at: 1.hour.ago
+      )
+
+      allow(FitGapGeneratorWorker).to receive(:perform_async)
+
+      post "/api/v1/portfolio_skills/#{skill.id}/override",
+           params:  { override: { override_level: 4, assessor_notes: 'Synthetic note.' } },
+           headers: headers,
+           as:      :json
+
+      expect(response).to have_http_status(:created)
+      expect(FitGapReport.find_by(id: report.id)).to be_present
+      expect(FitGapGeneratorWorker).to have_received(:perform_async).with(portfolio.id, vacancy.id)
     end
   end
 end

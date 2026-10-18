@@ -69,6 +69,25 @@ FactoryBot.define do
     overridden_by { 7_001 }
   end
 
+  factory :assessment_skill do
+    transient do
+      organization { nil }
+    end
+
+    association :assessment, organization: :organization
+    sequence(:skill_id) { |n| "skill-#{n}" }
+    sequence(:skill_label) { |n| "Synthetic Assessment Skill #{n}" }
+    is_custom { false }
+    scope_include { 'Synthetic scope.' }
+    l1_anchor { 'Synthetic L1 anchor.' }
+    l2_anchor { 'Synthetic L2 anchor.' }
+    l3_anchor { 'Synthetic L3 anchor.' }
+    l4_anchor { 'Synthetic L4 anchor.' }
+    l5_anchor { 'Synthetic L5 anchor.' }
+    expected_level { 3 }
+    display_order { 0 }
+  end
+
   factory :vacancy do
     transient do
       organization { nil }
