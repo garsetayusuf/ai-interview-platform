@@ -22,6 +22,7 @@ import { useAudioWebSocket } from "@/hooks/useAudioWebSocket";
 import { sessionsApi } from "@/services/sessions";
 import HardwareCheck from "@/components/HardwareCheck";
 import { CheckCircle, Mic, MicOff } from "lucide-react";
+import { httpStatus } from "@/lib/httpError";
 import type { CandidateInfo, InterviewState, InterviewSpeaker, TranscriptTurn } from "@/types";
 
 export default function InterviewPage() {
@@ -29,6 +30,8 @@ export default function InterviewPage() {
   const [candidateInfo, setCandidateInfo] = useState<CandidateInfo | null>(null);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [interviewState, setInterviewState] = useState<InterviewState>("idle");
+  const [candidateError, setCandidateError] = useState<"invalid" | "unavailable" | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [speaker, setSpeaker] = useState<InterviewSpeaker>(null);
   const [transcript, setTranscript] = useState<Pick<TranscriptTurn, "speaker" | "text">[]>([]);
   const [hardwareCheckDone, setHardwareCheckDone] = useState(false); // kept for green banner
@@ -42,14 +45,18 @@ export default function InterviewPage() {
   // Fetch candidate info
   useEffect(() => {
     if (!token) return;
+    setCandidateError(null);
     sessionsApi.getCandidateInfo(token)
       .then((res) => {
         setCandidateInfo(res.data);
         setSessionId(res.data.session_id);
         if (res.data.session_status === "ended") setInterviewState("complete");
       })
-      .catch(() => setInterviewState("complete"));
-  }, [token]);
+      .catch((error: unknown) => {
+        // A missing or expired invite must never look like a finished interview.
+        setCandidateError(httpStatus(error) === 404 ? "invalid" : "unavailable");
+      });
+  }, [token, retryCount]);
 
   const muteRef = useRef<(() => void) | null>(null);
   const unmuteRef = useRef<(() => void) | null>(null);
@@ -186,6 +193,29 @@ export default function InterviewPage() {
       : connectionState === "connected"
       ? "connected"
       : "reconnecting";
+
+  // ── State E2: Invite cannot be loaded ───────────────────────────────────
+  if (candidateError) {
+    const isInvalid = candidateError === "invalid";
+
+    return (
+      <div className="max-w-xl mx-auto px-4 py-16 space-y-4 text-center">
+        <h1 className="text-xl font-semibold">
+          {isInvalid ? "This invitation link is not valid" : "We could not load your interview"}
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          {isInvalid
+            ? "The link may have expired or been copied incorrectly. Ask the hiring team for a new invitation link."
+            : "Your interview has not started and nothing has been recorded. Check your connection and try again."}
+        </p>
+        {!isInvalid && (
+          <Button className="w-full sm:w-auto" onClick={() => setRetryCount((count) => count + 1)}>
+            Try again
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   // ── State A: Pre-start ──────────────────────────────────────────────────
   if (interviewState === "idle") {
