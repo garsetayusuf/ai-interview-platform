@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,8 +8,12 @@ import ComparisonTable from "@/components/fitgap/ComparisonTable";
 import { portfoliosApi } from "@/services/portfolios";
 import { sessionsApi } from "@/services/sessions";
 import { usePolling } from "@/hooks/usePolling";
+import { httpStatus } from "@/lib/httpError";
 import { ArrowLeft, Download, Loader2, RefreshCw, Zap } from "lucide-react";
 import type { FitGapReport, Portfolio } from "@/types";
+
+// Roughly two minutes of polling before admitting a replacement never landed.
+const REPLACEMENT_POLL_LIMIT = 24;
 
 export default function FitGapReportPage() {
   const { id, sessionId, vacancyId } = useParams<{
@@ -21,53 +25,139 @@ export default function FitGapReportPage() {
   const [report, setReport] = useState<FitGapReport | null>(null);
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [generationFailed, setGenerationFailed] = useState(false);
+  const [replacing, setReplacing] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"pdf" | "json" | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
+
+  // A regeneration replaces the report row in place, so polling cannot re-queue
+  // and cannot treat the previous report as the new one.
+  const queuedRef = useRef(false);
+  const replacementAttemptsRef = useRef(0);
 
   const fetchReport = useCallback(async () => {
     if (!portfolio) return;
+
     try {
       const res = await portfoliosApi.getFitGap(portfolio.id, Number(vacancyId));
-      setReport(res.data.report);
+      const incoming = res.data.report;
+
+      if (replacing && incoming.generated_at === replacing) {
+        replacementAttemptsRef.current += 1;
+        if (replacementAttemptsRef.current >= REPLACEMENT_POLL_LIMIT) {
+          replacementAttemptsRef.current = 0;
+          setReplacing(null);
+          setActionError("Regeneration did not finish. The previous report is still shown.");
+        }
+        return;
+      }
+
+      setReport(incoming);
+      setReplacing(null);
+      replacementAttemptsRef.current = 0;
       setGenerating(false);
-    } catch (e: any) {
-      if (e?.response?.status === 404) {
+      setGenerationFailed(false);
+      setLoadError(false);
+    } catch (error) {
+      if (httpStatus(error) !== 404) {
+        setLoadError(true);
+        setGenerating(false);
+        return;
+      }
+
+      // No report row yet: queue exactly once. Polling must never re-queue.
+      if (!queuedRef.current) {
+        queuedRef.current = true;
         try {
           await portfoliosApi.triggerFitGap(portfolio.id, Number(vacancyId));
           setGenerating(true);
+          setLoadError(false);
         } catch {
+          queuedRef.current = false;
           setGenerating(false);
+          setLoadError(true);
         }
+        return;
+      }
+
+      // Queued but still absent: generation itself may have failed.
+      try {
+        const statusRes = await sessionsApi.getPortfolio(Number(sessionId));
+        const data: { status?: string; portfolio?: Portfolio } = statusRes.data;
+
+        if (data.portfolio?.generation_status === "failed") {
+          setGenerating(false);
+          setGenerationFailed(true);
+        } else if (data.portfolio?.generation_status === "complete") {
+          setPortfolio(data.portfolio);
+        }
+      } catch {
+        // Leave the current state alone; the next tick retries.
       }
     }
-  }, [portfolio, vacancyId]);
+  }, [portfolio, vacancyId, sessionId, replacing]);
 
   useEffect(() => {
     sessionsApi
       .getPortfolio(Number(sessionId))
       .then(async (res) => {
-        const data = res.data as any;
+        // Endpoint returns either an in-progress marker or the portfolio payload.
+        const data: { status?: string; portfolio?: Portfolio } = res.data;
         if (data.portfolio) {
           setPortfolio(data.portfolio);
         }
       })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
-  }, [sessionId]);
+  }, [sessionId, retryCount]);
 
   useEffect(() => {
     if (portfolio) fetchReport();
   }, [portfolio, fetchReport]);
 
-  usePolling(fetchReport, 5000, generating && !!portfolio);
+  usePolling(fetchReport, 5000, (generating || replacing !== null) && !!portfolio);
+
+  const queueReport = async (): Promise<boolean> => {
+    if (!portfolio) return false;
+
+    try {
+      await portfoliosApi.triggerFitGap(portfolio.id, Number(vacancyId));
+      queuedRef.current = true;
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleRetryGeneration = async () => {
+    setActionError(null);
+    setGenerationFailed(false);
+    setGenerating(true);
+
+    if (await queueReport()) return;
+
+    setGenerating(false);
+    setGenerationFailed(true);
+    setActionError("Could not queue report generation.");
+  };
 
   const handleRegenerate = async () => {
     if (!portfolio) return;
     setRegenerating(true);
+    setActionError(null);
+
     try {
       await portfoliosApi.regenerateFitGap(portfolio.id, Number(vacancyId));
-      setReport(null);
-      setGenerating(true);
+      // Keep the previous report visible until its replacement lands.
+      replacementAttemptsRef.current = 0;
+      setReplacing(report?.generated_at ?? null);
+      setGenerating(report == null);
+    } catch {
+      setActionError("Could not queue a new report. The previous report is unchanged.");
     } finally {
       setRegenerating(false);
     }
@@ -142,9 +232,64 @@ export default function FitGapReportPage() {
 
       {/* Generating */}
       {generating && (
-        <div className="border rounded-lg p-12 text-center space-y-3">
+        <div className="border rounded-lg p-12 text-center space-y-3" role="status" aria-live="polite">
           <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
           <p className="text-sm text-muted-foreground">Generating fit/gap report...</p>
+        </div>
+      )}
+
+      {/* Load failure */}
+      {loadError && !generating && (
+        <div className="border border-destructive/40 rounded-lg p-6 text-center space-y-3" role="alert">
+          <p className="text-sm text-destructive">We could not load this fit/gap report.</p>
+          <p className="text-xs text-muted-foreground">
+            Nothing was changed. Retry to request the report again.
+          </p>
+          <Button variant="outline" size="sm" onClick={() => setRetryCount((count) => count + 1)}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+          </Button>
+        </div>
+      )}
+
+      {/* Generation failure */}
+      {generationFailed && !generating && (
+        <div className="border border-destructive/40 rounded-lg p-6 text-center space-y-3" role="alert">
+          <p className="text-sm text-destructive">Fit/gap generation failed.</p>
+          <p className="text-xs text-muted-foreground">
+            The portfolio itself is unaffected. Retry to queue the comparison again.
+          </p>
+          <Button variant="outline" size="sm" onClick={handleRetryGeneration}>
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Retry
+          </Button>
+        </div>
+      )}
+
+      {/* Action failure */}
+      {actionError && (
+        <div className="border border-destructive/40 rounded-lg p-4 text-sm text-destructive" role="alert">
+          {actionError}
+        </div>
+      )}
+
+      {/* Regenerating over a valid previous report */}
+      {replacing && (
+        <div
+          className="border rounded-lg p-3 text-xs text-muted-foreground flex items-center gap-2"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Regenerating. The report below is the previous version and stays valid until the replacement lands.
+        </div>
+      )}
+
+      {/* No report yet */}
+      {!generating && !report && !loadError && !generationFailed && portfolio && (
+        <div className="border rounded-lg p-8 text-center space-y-2">
+          <p className="text-sm font-medium">No fit/gap report yet.</p>
+          <p className="text-sm text-muted-foreground">
+            Generate a report to compare this portfolio against the vacancy requirements.
+          </p>
         </div>
       )}
 
@@ -158,6 +303,10 @@ export default function FitGapReportPage() {
             </CardHeader>
             <CardContent className="px-4 pb-4">
               <ComparisonTable comparisons={report.skill_comparisons} />
+              <p className="text-xs text-muted-foreground mt-3">
+                “Insufficient evidence” means the interview did not produce enough evidence to rate the skill; it is
+                not a low rating. “Not assessed” means the skill was never covered in the interview.
+              </p>
             </CardContent>
           </Card>
 
@@ -169,11 +318,30 @@ export default function FitGapReportPage() {
               <CardTitle className="text-sm">Culture &amp; Competency Fit</CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4">
-              <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
-                {report.culture_narrative || report.overall_narrative}
-              </p>
+              {report.culture_narrative ? (
+                <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+                  {report.culture_narrative}
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No culture narrative was generated for this report. The skill comparison above is unaffected.
+                </p>
+              )}
             </CardContent>
           </Card>
+
+          {report.overall_narrative && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Overall Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="px-4 pb-4">
+                <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+                  {report.overall_narrative}
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Discovered skills */}
           {portfolio && portfolio.skills.some((s) => s.is_discovered) && (
