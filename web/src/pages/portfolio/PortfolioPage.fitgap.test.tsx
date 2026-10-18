@@ -163,7 +163,7 @@ describe("PortfolioPage run fit/gap control", () => {
 
         await selectVacancy("Backend Engineer");
 
-        const openExisting = await screen.findByRole("button", { name: "Open existing report" });
+        const openExisting = await screen.findByRole("button", { name: "Open Fit/Gap Report" });
         expect(within(screen.getByTestId("portfolio-action-bar")).getByRole("status")).toHaveTextContent("Report available");
 
         fireEvent.click(openExisting);

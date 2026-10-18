@@ -266,7 +266,7 @@ export default function PortfolioPage() {
             ? `Report available · generated ${formatTimestamp(existingReport.generated_at) ?? "earlier"}.`
             : "A comparison will be generated when you open the report.";
 
-  const actions = (stacked: boolean) => {
+  const exportActions = (stacked: boolean) => {
     const stackedClass = stacked ? "w-full justify-start min-h-11" : "";
     return (
       <>
@@ -280,131 +280,59 @@ export default function PortfolioPage() {
           <FileText className="h-3.5 w-3.5" />
           Transcript
         </Link>
-
         {portfolio && (
           <>
-            <Button
-              variant="outline"
-              size="sm"
-              className={stackedClass}
-              onClick={() => handleExport("pdf")}
-              disabled={!!exporting}
-            >
-              {exporting === "pdf" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5 mr-1" />
-              )}
+            <Button variant="outline" size="sm" className={stackedClass} onClick={() => handleExport("pdf")} disabled={!!exporting}>
+              {exporting === "pdf" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
               PDF
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className={stackedClass}
-              onClick={() => handleExport("json")}
-              disabled={!!exporting}
-            >
-              {exporting === "json" ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Download className="h-3.5 w-3.5 mr-1" />
-              )}
+            <Button variant="outline" size="sm" className={stackedClass} onClick={() => handleExport("json")} disabled={!!exporting}>
+              {exporting === "json" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1" />}
               JSON
             </Button>
           </>
         )}
-
-        {(generating || reportIsReady) && (
-          <div className={cn("space-y-1", stacked && "w-full")}>
-            <Label
-              htmlFor="fitgap-vacancy"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              Compare against
-            </Label>
-            <div
-              className={cn(
-                "flex items-center gap-2",
-                stacked ? "flex-col items-stretch" : "flex-wrap",
-              )}
-            >
-              <Select value={selectedVacancy} onValueChange={setSelectedVacancy}>
-                <SelectTrigger
-                  id="fitgap-vacancy"
-                  aria-label={`Compare against vacancy, ${vacancies.length} available`}
-                  className="w-full sm:w-64"
-                >
-                  <SelectValue placeholder="Choose vacancy..." />
-                  {vacancies.length > 0 && (
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {vacancies.length}
-                    </span>
-                  )}
-                </SelectTrigger>
-                <SelectContent>
-                  {vacancies.length === 0 ? (
-                    <div className="px-2 py-3 text-sm text-muted-foreground">
-                      No vacancies yet.{" "}
-                      <Link to="/vacancies/new" className="underline">
-                        Create a vacancy
-                      </Link>
-                    </div>
-                  ) : (
-                    vacancies.map((v) => (
-                      <SelectItem key={v.id} value={String(v.id)}>
-                        {v.role_title}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-
-              <div
-                className={cn(
-                  "flex items-center gap-2",
-                  stacked ? "flex-col items-stretch" : "flex-wrap",
-                )}
-              >
-                {existingReport && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className={stackedClass}
-                    onClick={handleRunFitGap}
-                    disabled={isNavigating}
-                  >
-                    Open existing report
-                  </Button>
-                )}
-                {!existingReport && (
-                  <Button
-                    size="sm"
-                    className={stackedClass}
-                    onClick={handleRunFitGap}
-                    disabled={!selectedVacancy || isNavigating || generating}
-                  >
-                    {generating ? (
-                      "Generating…"
-                    ) : (
-                      <>
-                        Generate Fit/Gap Analysis
-                        <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                      </>
-                    )}
-                  </Button>
-                )}
-              </div>
-            </div>
-            <p
-              className="text-xs text-muted-foreground"
-              role="status"
-              aria-live="polite"
-            >
-              {fitGapStatus}
-            </p>
-          </div>
-        )}
       </>
+    );
+  };
+
+  const compareControl = (stacked: boolean) => {
+    const stackedClass = stacked ? "w-full justify-start min-h-11" : "";
+    return (
+      (generating || reportIsReady) && (
+        <div className={cn("space-y-1", stacked && "w-full")}>
+          <Label htmlFor="fitgap-vacancy" className="text-xs font-medium text-muted-foreground">
+            Compare against
+          </Label>
+          <div className={cn("flex items-center gap-2", stacked ? "flex-col items-stretch" : "flex-wrap")}>
+            <Select value={selectedVacancy} onValueChange={setSelectedVacancy}>
+              <SelectTrigger id="fitgap-vacancy" aria-label={`Compare against vacancy, ${vacancies.length} available`} className="w-full sm:w-64">
+                <SelectValue placeholder="Choose vacancy..." />
+                {vacancies.length > 0 && <span className="ml-auto text-xs text-muted-foreground">{vacancies.length}</span>}
+              </SelectTrigger>
+              <SelectContent>
+                {vacancies.length === 0 ? (
+                  <div className="px-2 py-3 text-sm text-muted-foreground">
+                    No vacancies yet. <Link to="/vacancies/new" className="underline">Create a vacancy</Link>
+                  </div>
+                ) : vacancies.map((v) => <SelectItem key={v.id} value={String(v.id)}>{v.role_title}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <div className={cn("flex items-center gap-2", stacked ? "flex-col items-stretch" : "flex-wrap")}>
+              {existingReport ? (
+                <Button variant="secondary" size="sm" className={stackedClass} onClick={handleRunFitGap} disabled={isNavigating}>
+                  Open Fit/Gap Report <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                </Button>
+              ) : (
+                <Button size="sm" className={stackedClass} onClick={handleRunFitGap} disabled={!selectedVacancy || isNavigating || generating}>
+                  {generating ? "Generating…" : <>Generate Fit/Gap Analysis <ArrowRight className="h-3.5 w-3.5 ml-1" /></>}
+                </Button>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground" role="status" aria-live="polite">{fitGapStatus}</p>
+        </div>
+      )
     );
   };
 
@@ -425,16 +353,11 @@ export default function PortfolioPage() {
           </Link>
           <div className="min-w-0 flex-1">
             <h1 className="text-lg font-semibold">Portfolio Results</h1>
-            {candidateName && (
-              <p className="text-sm text-muted-foreground truncate">
-                {candidateName}
-              </p>
-            )}
-            {generatingStatusText && (
-              <p className="text-xs text-muted-foreground">
-                {generatingStatusText}
-              </p>
-            )}
+            {candidateName && <p className="text-sm text-muted-foreground truncate">{candidateName}</p>}
+            {generatingStatusText && <p className="text-xs text-muted-foreground">{generatingStatusText}</p>}
+          </div>
+          <div className="hidden sm:flex flex-wrap items-center justify-end gap-2">
+            {exportActions(false)}
           </div>
           <div className="sm:hidden shrink-0">
             <Sheet>
@@ -444,18 +367,18 @@ export default function PortfolioPage() {
                   Actions
                 </Button>
               </SheetTrigger>
-              <SheetContent side="bottom" className="space-y-3">
-                <SheetHeader>
-                  <SheetTitle>Portfolio actions</SheetTitle>
-                </SheetHeader>
-                <div className="flex flex-col gap-2">{actions(true)}</div>
+              <SheetContent side="bottom" className="space-y-4">
+                <SheetHeader><SheetTitle>Portfolio actions</SheetTitle></SheetHeader>
+                <div className="flex flex-col gap-2">
+                  {exportActions(true)}
+                  {compareControl(true)}
+                </div>
               </SheetContent>
             </Sheet>
           </div>
         </div>
-
-        <div className="hidden sm:flex flex-wrap items-center gap-2">
-          {actions(false)}
+        <div className="hidden sm:block border-t pt-3">
+          {compareControl(false)}
         </div>
       </div>
 
