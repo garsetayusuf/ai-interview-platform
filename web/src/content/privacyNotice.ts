@@ -45,14 +45,13 @@ export const PRIVACY_NOTICE: PrivacyNoticeSection[] = [
         bullets: [
             "Ask for a copy of the data held about you.",
             "Ask for corrections to inaccurate data.",
-            "Ask for your data to be deleted.",
             "Withdraw this consent at any time — including by declining here, or later by contacting the hiring team.",
         ],
     },
     {
         heading: "How long it is kept",
         paragraphs: [
-            "The hiring team keeps your interview data only as long as needed for the recruitment process and the retention period they apply. Contact them to ask for the specific period or for early deletion.",
+            "The hiring team keeps your interview data only as long as needed for the recruitment process and the retention period they apply. Contact them to ask for the specific period.",
         ],
     },
     {

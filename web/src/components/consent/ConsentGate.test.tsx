@@ -83,7 +83,7 @@ describe("ConsentGate", () => {
 
         expect(screen.getByRole("heading", { name: "You cannot continue without consent." })).toBeInTheDocument();
         expect(
-            screen.getByText("To withdraw or delete your data, contact the hiring team with your invite link.")
+            screen.getByText("To withdraw your consent or ask questions about your data, contact the hiring team with your invite link.")
         ).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "I agree and continue" })).not.toBeInTheDocument();
     });

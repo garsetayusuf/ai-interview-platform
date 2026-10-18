@@ -36,6 +36,8 @@ function SessionRow({
   const isLive = session.status === "active";
   const isEnded = session.status === "ended";
   const isPending = session.status === "pending";
+  const consentDeclined = isPending && session.consent_declined;
+  const consentAccepted = isPending && session.consent_accepted;
   const displayName = session.candidate_name || `Candidate ${index}`;
 
   return (
@@ -55,7 +57,19 @@ function SessionRow({
       </div>
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        {isPending && (
+        {consentDeclined && (
+          <span className="flex items-center gap-1 text-xs text-destructive">
+            <span className="w-1.5 h-1.5 rounded-full bg-destructive" />
+            Consent declined
+          </span>
+        )}
+        {consentAccepted && (
+          <span className="flex items-center gap-1 text-xs text-green-600">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            Ready to start
+          </span>
+        )}
+        {isPending && !consentDeclined && !consentAccepted && (
           <span className="flex items-center gap-1 text-xs text-amber-600">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
             Awaiting candidate

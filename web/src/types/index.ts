@@ -11,6 +11,8 @@ export interface Assessment {
   latest_session?: {
     status: "pending" | "active" | "ended";
     end_reason?: string | null;
+    consent_accepted?: boolean;
+    consent_declined?: boolean;
   };
 }
 
@@ -41,6 +43,8 @@ export interface Session {
   invite_url: string;
   status: "pending" | "active" | "ended";
   end_reason?: string;
+  consent_accepted?: boolean;
+  consent_declined?: boolean;
   started_at?: string;
   ended_at?: string;
   duration_seconds?: number;

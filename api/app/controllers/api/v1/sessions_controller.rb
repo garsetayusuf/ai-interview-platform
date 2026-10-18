@@ -211,19 +211,21 @@ module Api
 
       def session_json(session)
         {
-          id:               session.id,
-          assessment_id:    session.assessment_id,
-          tenant_id:        session.tenant_id,
-          candidate_id:     session.candidate_id,
-          candidate_name:   session.candidate_name,
-          invite_token:     session.invite_token,
-          invite_url:       session.invite_url,
-          status:           session.status,
-          end_reason:       session.end_reason,
-          started_at:       session.started_at,
-          ended_at:         session.ended_at,
-          duration_seconds: session.duration_seconds,
-          created_at:       session.created_at
+          id:                  session.id,
+          assessment_id:       session.assessment_id,
+          tenant_id:           session.tenant_id,
+          candidate_id:         session.candidate_id,
+          candidate_name:       session.candidate_name,
+          invite_token:         session.invite_token,
+          invite_url:           session.invite_url,
+          status:               session.status,
+          end_reason:           session.end_reason,
+          consent_accepted:     session.consent_accepted?,
+          consent_declined:     session.consent_declined?,
+          started_at:           session.started_at,
+          ended_at:             session.ended_at,
+          duration_seconds:     session.duration_seconds,
+          created_at:            session.created_at
         }
       end
 

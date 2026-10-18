@@ -30,7 +30,7 @@ export default function ConsentGate({
                     Your decision has been recorded and the interview has not started. Nothing was recorded.
                 </p>
                 <p className="text-sm text-muted-foreground">
-                    To withdraw or delete your data, contact the hiring team with your invite link.
+                    To withdraw your consent or ask questions about your data, contact the hiring team with your invite link.
                 </p>
             </div>
         );
