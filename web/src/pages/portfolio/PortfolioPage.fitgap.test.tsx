@@ -65,6 +65,7 @@ const REPORT: FitGapReport = {
     portfolio_id: 7,
     vacancy_id: 2,
     skill_comparisons: [],
+    override_context: [],
     culture_narrative: "",
     overall_narrative: "",
     generated_at: "2026-10-18T11:00:00.000Z",

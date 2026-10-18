@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import ComparisonTable from "@/components/fitgap/ComparisonTable";
+import LevelBadge from "@/components/portfolio/LevelBadge";
 import { portfoliosApi } from "@/services/portfolios";
 import { sessionsApi } from "@/services/sessions";
 import { usePolling } from "@/hooks/usePolling";
@@ -195,6 +196,11 @@ export default function FitGapReportPage() {
     );
   }
 
+  // Overrides are stored on the portfolio, keyed by the skill they correct.
+  const overrideBySkillId = new Map(
+    (portfolio?.overrides ?? []).map((override) => [override.portfolio_skill_id, override]),
+  );
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Header */}
@@ -307,6 +313,16 @@ export default function FitGapReportPage() {
             </CardHeader>
             <CardContent className="px-4 pb-4">
               <ComparisonTable comparisons={report.skill_comparisons} />
+              {report.override_context.length > 0 && (
+                <ul className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  {report.override_context.map((entry, index) => (
+                    <li key={`${entry.skill_id ?? entry.skill_label}-${index}`}>
+                      Overrides on skills outside this vacancy: {entry.skill_label} L{entry.override_level}
+                      {entry.ai_level !== entry.override_level ? ` (AI rated L${entry.ai_level})` : ""}
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p className="text-xs text-muted-foreground mt-3">
                 “Insufficient evidence” means the interview did not produce enough evidence to rate the skill; it is
                 not a low rating. “Not assessed” means the skill was never covered in the interview.
@@ -358,18 +374,33 @@ export default function FitGapReportPage() {
                     Discovered Skills (not in vacancy requirements)
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="px-4 pb-4 space-y-2">
+                <CardContent className="px-4 pb-4 space-y-3">
                   {portfolio.skills
                     .filter((s) => s.is_discovered)
-                    .map((s) => (
-                      <div key={s.id} className="text-sm flex items-center gap-2">
-                        <span className="font-medium">{s.skill_label}</span>
-                        <span className="text-muted-foreground">
-                          {s.ai_level} ({s.ai_confidence?.toLowerCase() === "low" ? "low confidence" : "confirmed"})
-                        </span>
-                        <span className="text-xs text-muted-foreground">— Not required for this role, may be additive.</span>
-                      </div>
-                    ))}
+                    .map((s) => {
+                      const override = overrideBySkillId.get(s.id);
+                      const effectiveLevel = override?.override_level ?? s.ai_level;
+
+                      return (
+                        <div key={s.id} className="text-sm flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{s.skill_label}</span>
+                          <LevelBadge level={effectiveLevel} size="sm" />
+                          {override && (
+                            <span className="text-xs font-medium text-green-600">
+                              Human override
+                            </span>
+                          )}
+                          <span className="text-xs text-muted-foreground">
+                            {override
+                              ? `AI rated L${s.ai_level} — assessor set L${override.override_level}`
+                              : s.ai_confidence?.toLowerCase() === "low"
+                                ? "low confidence"
+                                : "confirmed"}
+                          </span>
+                          <span className="text-xs text-muted-foreground">— Not required for this role, may be additive.</span>
+                        </div>
+                      );
+                    })}
                 </CardContent>
               </Card>
             </>

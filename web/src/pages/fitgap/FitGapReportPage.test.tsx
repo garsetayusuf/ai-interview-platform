@@ -46,6 +46,7 @@ const REPORT: FitGapReport = {
     ],
     culture_narrative: "Culture fit narrative.",
     overall_narrative: "Overall narrative.",
+    override_context: [],
     generated_at: "2026-10-18T11:00:00.000Z",
 };
 
@@ -98,7 +99,7 @@ describe("FitGapReportPage failure handling", () => {
         await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
     });
 
-    it("reports a load failure with retry", async () => {
+    it('reports a load failure with retry', async () => {
         vi.mocked(sessionsApi.getPortfolio).mockRejectedValue(new Error("offline"));
         renderPage();
 
@@ -106,5 +107,73 @@ describe("FitGapReportPage failure handling", () => {
             "We could not load this fit/gap report."
         );
         expect(screen.getByRole("button", { name: /Retry/ })).toBeInTheDocument();
+    });
+
+    it('shows an assessor override on a discovered skill instead of the AI level alone', async () => {
+        vi.mocked(sessionsApi.getPortfolio).mockResolvedValue({
+            data: {
+                portfolio: {
+                    ...PORTFOLIO,
+                    skills: [
+                        {
+                            id: 41,
+                            skill_label: "Terraform",
+                            is_discovered: true,
+                            ai_level: 2,
+                            ai_confidence: "medium",
+                            assessment_state: "assessed",
+                            evidence: [],
+                            competency_summary: "",
+                        },
+                    ],
+                    overrides: [
+                        {
+                            id: 3,
+                            portfolio_skill_id: 41,
+                            ai_level: 2,
+                            override_level: 5,
+                            assessor_notes: "Synthetic note.",
+                            overridden_by: 7001,
+                            overridden_at: "2026-10-18T12:00:00.000Z",
+                        },
+                    ],
+                },
+            },
+        } as never);
+
+        renderPage();
+
+        expect(await screen.findByText("Terraform")).toBeInTheDocument();
+        expect(screen.getByText("Human override")).toBeInTheDocument();
+        expect(screen.getByText("L5")).toBeInTheDocument();
+        expect(screen.getByText("AI rated L2 — assessor set L5")).toBeInTheDocument();
+    });
+
+    it('lists overrides that fall outside the vacancy', async () => {
+        vi.mocked(portfoliosApi.getFitGap).mockResolvedValue({
+            data: {
+                report: {
+                    ...REPORT,
+                    override_context: [
+                        { skill_label: "Communication", skill_id: "communication", ai_level: 2, override_level: 5 },
+                    ],
+                },
+            },
+        } as never);
+
+        renderPage();
+
+        const note = await screen.findByText(/Overrides on skills outside this vacancy/);
+        expect(note).toHaveTextContent(
+            "Overrides on skills outside this vacancy: Communication L5 (AI rated L2)"
+        );
+    });
+
+    it('does not invent an override note when every override is compared', async () => {
+        renderPage();
+
+        await screen.findByText("Skill Comparison");
+
+        expect(screen.queryByText(/Overrides on skills outside this vacancy/)).not.toBeInTheDocument();
     });
 });

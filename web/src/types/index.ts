@@ -16,7 +16,7 @@ export interface Assessment {
 
 export interface AssessmentSkill {
   id?: number;
-  skill_id?: number;
+  skill_id?: string;
   skill_label: string;
   is_custom: boolean;
   expected_level: number;
@@ -49,7 +49,7 @@ export interface Session {
 
 export interface CoverageSkill {
   id: number;
-  skill_id: number;
+  skill_id: string;
   skill_label: string;
   is_discovered: boolean;
   state: "not_yet" | "initiated" | "partial" | "covered";
@@ -87,7 +87,7 @@ export interface Portfolio {
 
 export interface PortfolioSkill {
   id: number;
-  skill_id?: number;
+  skill_id?: string;
   skill_label: string;
   is_discovered: boolean;
   ai_level: number;
@@ -120,7 +120,7 @@ export interface Vacancy {
 
 export interface VacancySkill {
   id?: number;
-  skill_id?: number;
+  skill_id?: string;
   skill_label: string;
   expected_level: number;
   _destroy?: boolean;
@@ -141,11 +141,19 @@ export interface SkillComparison {
   candidate_level_source: "ai" | "assessor_override" | null;
 }
 
+export interface FitGapOverrideContext {
+  skill_label: string;
+  skill_id?: string | null;
+  ai_level: number;
+  override_level: number;
+}
+
 export interface FitGapReport {
   id: number;
   portfolio_id: number;
   vacancy_id: number;
   skill_comparisons: SkillComparison[];
+  override_context: FitGapOverrideContext[];
   culture_narrative: string;
   overall_narrative: string;
   generated_at: string;
