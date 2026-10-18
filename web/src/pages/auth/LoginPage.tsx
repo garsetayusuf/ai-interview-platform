@@ -6,6 +6,7 @@ import { authApi } from "@/services/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import PasswordInput from "@/components/auth/PasswordInput";
+import { loginSchema } from "@/schemas/auth";
 import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 
@@ -20,6 +21,11 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    const parsed = loginSchema.safeParse({ email, password });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Check your email and password.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await authApi.login({ email, password });
