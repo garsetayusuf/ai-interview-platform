@@ -95,4 +95,25 @@ RSpec.describe FitGap::Engine do
     high_comparison = described_class.new(portfolio:, vacancy:, gemini_client:).call.skill_comparisons.first
     expect(high_comparison.fetch('candidate_level')).to eq(5)
   end
+
+  it 'reports insufficient evidence when the skill was probed but never rated' do
+    session.coverage_maps.create!(
+      skill_id: 'ruby',
+      skill_label: 'Ruby',
+      is_discovered: false,
+      state: 'partial',
+      probe_count: 1
+    )
+
+    comparison = described_class.new(portfolio:, vacancy:, gemini_client:).call.skill_comparisons.first
+
+    expect(comparison).to include(
+      'required_level' => 4,
+      'candidate_level' => nil,
+      'result' => 'not_assessed',
+      'assessment_state' => 'insufficient_evidence',
+      'is_override' => false,
+      'candidate_level_source' => nil
+    )
+  end
 end

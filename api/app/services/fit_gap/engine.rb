@@ -8,7 +8,7 @@ module FitGap
       @portfolio = portfolio
       @vacancy   = vacancy
       @gemini_client = gemini_client || Gemini::HttpClient.new(
-        model:   ENV.fetch('GEMINI_FLASH_MODEL', 'gemini-2.0-flash-001'),
+        model:   ENV.fetch('GEMINI_FLASH_MODEL', 'gemini-2.5-flash'),
         timeout: 30
       )
     end
@@ -58,7 +58,8 @@ module FitGap
           candidate_level = nil
           delta = nil
           result = 'not_assessed'
-          assessment_state = 'not_assessed'
+          # Evidence existed for the skill but not enough to support a level.
+          assessment_state = coverage_evidence?(vacancy_skill) ? 'insufficient_evidence' : 'not_assessed'
         end
 
         {
@@ -99,6 +100,23 @@ module FitGap
         portfolio_skills.find { |s| s[:skill_label].downcase == label.downcase }
     end
 
+    # Coverage rows exist once the interview probed a skill. A non-`not_yet`
+    # state means the candidate was asked about it but no rated skill was kept.
+    def coverage_evidence?(vacancy_skill)
+      key = vacancy_skill.skill_id.presence
+      label = vacancy_skill.skill_label.to_s.downcase
+
+      coverage_maps.any? do |map|
+        next false if map.state == 'not_yet'
+
+        (key.present? && map.skill_id == key) || map.skill_label.to_s.downcase == label
+      end
+    end
+
+    def coverage_maps
+      @coverage_maps ||= @portfolio.session.coverage_maps.to_a
+    end
+
     def generate_narratives(skill_comparisons)
       gaps    = skill_comparisons.select { |c| c[:result] == 'gap' }
       matches = skill_comparisons.select { |c| c[:result] == 'match' }
@@ -119,8 +137,6 @@ module FitGap
 
     def build_narrative_prompt(gaps, matches, exceeds, not_assessed)
       vacancy = @vacancy
-      portfolio_session = @portfolio.session
-      assessment = portfolio_session.assessment
 
       <<~PROMPT
         You are writing a fit/gap analysis narrative for a candidate evaluation.
