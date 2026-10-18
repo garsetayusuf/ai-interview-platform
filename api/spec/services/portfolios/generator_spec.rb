@@ -33,6 +33,27 @@ RSpec.describe Portfolios::Generator do
     expect(skill.evidence_quotes).to eq(['Synthetic candidate evidence.'])
   end
 
+  it 'clears stale provider errors when regeneration completes' do
+    create(
+      :portfolio,
+      organization:,
+      session:,
+      generation_status: 'failed',
+      generation_error: 'API returned 503'
+    )
+    allow(gemini_client).to receive(:generate_content).and_return(
+      {
+        'configured_skills' => [],
+        'discovered_skills' => []
+      }
+    )
+
+    result = described_class.new(session:, gemini_client:).call
+
+    expect(result).to be_complete
+    expect(result.generation_error).to be_nil
+  end
+
   it 'does not silently convert a malformed level into a valid rating' do
     allow(gemini_client).to receive(:generate_content).and_return(
       {
@@ -53,6 +74,7 @@ RSpec.describe Portfolios::Generator do
     portfolio = described_class.new(session:, gemini_client:).call
 
     expect(portfolio).to be_failed
+    expect(portfolio.generation_error).to eq('Portfolio level must be an integer from 1 to 5')
     expect(portfolio.portfolio_skills).to be_empty
   end
 
