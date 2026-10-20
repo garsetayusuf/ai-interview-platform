@@ -19,31 +19,20 @@ module Portfolios
         candidate_id:      @session.candidate_id,
         generation_status: 'pending'
       )
-      return portfolio if (portfolio.complete? && portfolio.generation_error.blank?) || portfolio.generating?
 
-      portfolio.with_lock do
-        return portfolio if (portfolio.complete? && portfolio.generation_error.blank?) || portfolio.generating?
+      portfolio.update!(generation_status: 'generating')
 
-        portfolio.update!(generation_status: 'generating')
+      prompt   = build_prompt
+      response = @gemini_client.generate_content(prompt, temperature: 0.2)
 
-        prompt   = build_prompt
-        response = @gemini_client.generate_content(prompt, temperature: 0.2)
-
-        save_skills(portfolio, response)
-        portfolio.update!(generation_status: 'complete', generation_error: nil, generated_at: Time.current)
-      end
+      save_skills(portfolio, response)
+      portfolio.update!(generation_status: 'complete', generated_at: Time.current)
 
       Rails.logger.info("[N10] Portfolio generated for session #{@session.id}")
       portfolio
-    rescue Portfolios::InvalidResponse => e
-      portfolio&.update!(generation_status: 'failed', generation_error: e.message)
-      Rails.logger.warn("[N10] Portfolio generation rejected: #{e.message}")
-      portfolio
     rescue => e
       portfolio&.update!(generation_status: 'failed', generation_error: e.message)
-      # Transport and provider errors can quote the prompt or the raw response, so
-      # only the class is logged.
-      Rails.logger.error("[N10] Portfolio generation failed for session #{@session.id}: #{e.class}")
+      Rails.logger.error("[N10] Portfolio generation failed for session #{@session.id}: #{e.class} #{e.message}")
       raise
     end
 
@@ -150,38 +139,28 @@ module Portfolios
 
     def coverage_json(map)
       {
-        id:          map.skill_id || map.skill_label.downcase.gsub(/\s+/, '-'),
-        label:       map.skill_label,
-        state:       map.state,
-        probe_count: map.probe_count,
+        id:            map.skill_id || map.skill_label.downcase.gsub(/\s+/, '-'),
+        label:         map.skill_label,
+        state:         map.state,
+        probe_count:   map.probe_count,
         is_discovered: map.is_discovered
       }
     end
 
     def save_skills(portfolio, response)
-      data = ResponseValidator.new(response).call
+      data = response.is_a?(Hash) ? response : JSON.parse(response)
       existing = portfolio.portfolio_skills.includes(:assessor_override).index_by do |skill|
-        skill_identity(
-          skill_id: skill.skill_id,
-          skill_label: skill.skill_label,
-          discovered: skill.is_discovered
-        )
+        skill.is_discovered ? "discovered:#{skill.skill_label.to_s.downcase}" : "configured:#{skill.skill_id}"
       end
 
       persist_skill = lambda do |skill_data, discovered|
-        skill = existing.delete(
-          skill_identity(
-            skill_id: skill_data['skill_id'],
-            skill_label: skill_data['skill_label'],
-            discovered:
-          )
-        ) || portfolio.portfolio_skills.build
-
+        identity = discovered ? "discovered:#{skill_data['skill_label'].to_s.downcase}" : "configured:#{skill_data['skill_id']}"
+        skill = existing.delete(identity) || portfolio.portfolio_skills.build
         skill.assign_attributes(
           skill_id:           discovered ? nil : skill_data['skill_id'],
           skill_label:        skill_data['skill_label'],
           is_discovered:      discovered,
-          ai_level:           skill_data['level'],
+          ai_level:           skill_data['level'].to_i.clamp(1, 5),
           ai_confidence:      skill_data['confidence'],
           evidence:           Array(skill_data['evidence']).first(3),
           competency_summary: skill_data['competency_summary']
@@ -190,20 +169,9 @@ module Portfolios
         skill.assessor_override&.update!(ai_level: skill.ai_level)
       end
 
-      Array(data['configured_skills']).each { |skill| persist_skill.call(skill, false) }
-      Array(data['discovered_skills']).each { |skill| persist_skill.call(skill, true) }
-
-      existing.values.each do |skill|
-        skill.destroy! unless skill.assessor_override
-      end
-    end
-
-    def skill_identity(skill_id:, skill_label:, discovered:)
-      if discovered
-        "discovered:#{skill_label.to_s.downcase}"
-      else
-        "configured:#{skill_id}"
-      end
+      (data['configured_skills'] || []).each { |skill| persist_skill.call(skill, false) }
+      (data['discovered_skills'] || []).each { |skill| persist_skill.call(skill, true) }
+      existing.values.each(&:destroy!)
     end
   end
 end

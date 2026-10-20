@@ -96,7 +96,6 @@ export interface PortfolioSkill {
   is_discovered: boolean;
   ai_level: number;
   ai_confidence: "high" | "medium" | "low";
-  assessment_state: "assessed" | "insufficient_evidence" | "not_assessed";
   evidence: string[];
   competency_summary: string;
 }
@@ -140,9 +139,7 @@ export interface SkillComparison {
   result: SkillComparisonResult;
   delta: number | null;
   confidence?: "high" | "medium" | "low" | null;
-  assessment_state: "assessed" | "insufficient_evidence" | "not_assessed";
   is_override: boolean;
-  candidate_level_source: "ai" | "assessor_override" | null;
 }
 
 export interface FitGapOverrideContext {

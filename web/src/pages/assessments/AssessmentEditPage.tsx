@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import {
@@ -40,6 +40,7 @@ export default function AssessmentEditPage() {
   const [error, setError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const originalSkillIdsRef = useRef<number[]>([]);
 
   const form = useForm<AssessmentFormValues>({
     defaultValues: { name: "", time_limit_min: 45, skills: [] },
@@ -66,6 +67,9 @@ export default function AssessmentEditPage() {
           l4_anchor: skill.l4_anchor ?? "",
           l5_anchor: skill.l5_anchor ?? "",
         }));
+        originalSkillIdsRef.current = skills.flatMap((skill) =>
+          typeof skill.id === "number" ? [skill.id] : []
+        );
         reset({ name: a.name, time_limit_min: a.time_limit_min, skills });
       })
       .catch(() => setLoadError(true))
@@ -112,10 +116,24 @@ export default function AssessmentEditPage() {
     setError(null);
     setSubmitting(true);
     try {
+      const normalizedSkills = parsed.data.skills.map((skill, index) => ({
+        ...data.skills[index],
+        ...skill,
+        display_order: index,
+      }));
+      const submittedSkillIds = new Set(
+        normalizedSkills.flatMap((skill) =>
+          typeof skill.id === "number" ? [skill.id] : []
+        )
+      );
+      const removedSkills = originalSkillIdsRef.current
+        .filter((skillId) => !submittedSkillIds.has(skillId))
+        .map((skillId) => ({ id: skillId, _destroy: true }));
+
       await assessmentsApi.update(Number(id), {
         name: data.name,
         time_limit_min: data.time_limit_min,
-        assessment_skills_attributes: data.skills.map((s, i) => ({ ...s, display_order: i })),
+        assessment_skills_attributes: [...normalizedSkills, ...removedSkills],
       });
       navigate(`/assessments/${id}/invite`);
     } catch (e) {

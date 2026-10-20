@@ -37,6 +37,7 @@ module Api
       # PUT /api/v1/vacancies/:id
       def update
         if @vacancy.update(vacancy_params)
+          invalidate_fit_gap_reports
           json_response(vacancy: vacancy_with_skills_json(@vacancy))
         else
           json_error(@vacancy.errors.full_messages.first, :unprocessable_entity)
@@ -50,6 +51,12 @@ module Api
       end
 
       private
+
+      def invalidate_fit_gap_reports
+        @vacancy.fit_gap_reports.pluck(:portfolio_id).each do |portfolio_id|
+          FitGapGeneratorWorker.perform_async(portfolio_id, @vacancy.id)
+        end
+      end
 
       def set_vacancy
         @vacancy = Vacancy.find(params[:id])

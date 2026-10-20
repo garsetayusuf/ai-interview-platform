@@ -7,7 +7,6 @@ const portfolioSkillSchema = z.object({
   is_discovered: z.boolean(),
   ai_level: z.number().int().min(1).max(5),
   ai_confidence: z.enum(["high", "medium", "low"]),
-  assessment_state: z.enum(["assessed", "insufficient_evidence", "not_assessed"]),
   evidence: z.array(z.string()),
   competency_summary: z.string(),
 }).passthrough();
@@ -35,9 +34,7 @@ const comparisonSchema = z.object({
   candidate_level: z.number().int().min(1).max(5).nullable(),
   result: z.enum(["match", "gap", "exceed", "not_assessed"]),
   delta: z.number().int().nullable(),
-  assessment_state: z.enum(["assessed", "insufficient_evidence", "not_assessed"]),
   is_override: z.boolean(),
-  candidate_level_source: z.enum(["ai", "assessor_override"]).nullable(),
 }).passthrough();
 
 export const fitGapReportSchema = z.object({

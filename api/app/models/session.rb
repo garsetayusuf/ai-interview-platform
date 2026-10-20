@@ -18,21 +18,16 @@ class Session < ApplicationRecord
 
   before_validation :generate_invite_token, on: :create
 
-  scope :active,  -> { where(status: 'active') }
-  scope :pending, -> { where(status: 'pending') }
-  scope :ended,   -> { where(status: 'ended') }
-
-  def active?  = status == 'active'
-  def ended?   = status == 'ended'
   def pending? = status == 'pending'
-
-  # The candidate may only be interviewed after UU PDP consent is recorded.
-  def consent_accepted? = consent_accepted_at.present?
+  def active? = status == 'active'
+  def ended? = status == 'ended'
+  def failed? = status == 'failed'
+  def consent_accepted? = consent_accepted_at.present? && consent_version == CONSENT_VERSION
   def consent_declined? = consent_declined_at.present?
 
   def invite_url
-    base = ENV.fetch('CANDIDATE_APP_URL', 'http://localhost:5173').delete_suffix('/')
-    "#{base}/interview/#{invite_token}"
+    base_url = ENV.fetch('CANDIDATE_APP_URL', 'http://localhost:5173').sub(%r{/\z}, '')
+    "#{base_url}/interview/#{invite_token}"
   end
 
   private

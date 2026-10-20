@@ -38,7 +38,8 @@ RSpec.describe 'Tenant authorization boundaries', type: :request do
       get "/api/v1/portfolios/#{owner_portfolio.id}/export", params: { format: 'json' }, headers: foreign_headers
 
       expect(response).to have_http_status(:not_found)
-      expect(response.body).not_to include(owner_portfolio.id.to_s)
+      body = JSON.parse(response.body)
+      expect(body.dig('errors', 0, 'message')).to eq('Portfolio not found')
       expect(response.body).not_to include(owner_skill.skill_label)
     end
 
@@ -46,7 +47,8 @@ RSpec.describe 'Tenant authorization boundaries', type: :request do
       get "/api/v1/portfolios/#{owner_portfolio.id}/export", params: { format: 'json' }, headers: unauthorized_headers
 
       expect(response).to have_http_status(:forbidden)
-      expect(response.body).not_to include(owner_portfolio.id.to_s)
+      body = JSON.parse(response.body)
+      expect(body.dig('errors', 0, 'message')).to eq('Unauthorized request')
     end
   end
 

@@ -59,9 +59,31 @@ describe("AssessmentEditPage legacy-null regression", () => {
     await waitFor(() => expect(assessmentsApi.update).toHaveBeenCalled());
 
     const payload = vi.mocked(assessmentsApi.update).mock.calls[0][1] as {
-      assessment_skills_attributes: Array<{ id?: number }>;
+      assessment_skills_attributes: Array<{
+        id?: number;
+        _destroy?: boolean;
+        scope_include?: string;
+        l1_anchor?: string;
+        l2_anchor?: string;
+        l3_anchor?: string;
+        l4_anchor?: string;
+        l5_anchor?: string;
+      }>;
     };
-    expect(payload.assessment_skills_attributes).toHaveLength(1);
-    expect(payload.assessment_skills_attributes[0].id).toBe(10);
-  });
+    expect(payload.assessment_skills_attributes).toHaveLength(2);
+    expect(payload.assessment_skills_attributes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 9, _destroy: true }),
+        expect.objectContaining({
+          id: 10,
+          scope_include: "legacy field",
+          l1_anchor: "legacy field",
+          l2_anchor: "legacy field",
+          l3_anchor: "legacy field",
+          l4_anchor: "legacy field",
+          l5_anchor: "legacy field",
+        }),
+      ]),
+    );
+});
 });

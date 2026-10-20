@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { overrideSchema } from "@/schemas/resources";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -26,18 +25,12 @@ export default function OverridePanel({ skill, existingOverride, onSaved }: Over
   const hasOverride = !!existingOverride;
 
   const handleSave = async () => {
-    const parsed = overrideSchema.safeParse({ override_level: overrideLevel, assessor_notes: notes });
-    if (!parsed.success) {
-      setSaveError(true);
-      return;
-    }
-
     setSaving(true);
     setSaveError(false);
     try {
       const res = await portfoliosApi.getOverride(skill.id, {
-        override_level: parsed.data.override_level,
-        assessor_notes: parsed.data.assessor_notes,
+        override_level: overrideLevel,
+        assessor_notes: notes,
       });
       onSaved(res.data.override);
       setOpen(false);
@@ -81,12 +74,7 @@ export default function OverridePanel({ skill, existingOverride, onSaved }: Over
 
       <div className="space-y-1.5">
         <Label className="text-sm">Your rating:</Label>
-        <LevelRadio
-          name={`override-${skill.id}`}
-          label={`Your rating for ${skill.skill_label}`}
-          value={overrideLevel}
-          onChange={setOverrideLevel}
-        />
+        <LevelRadio name={`override-${skill.id}`} label={`Your rating for ${skill.skill_label}`} value={overrideLevel} onChange={setOverrideLevel} />
       </div>
 
       <div className="space-y-1.5">

@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+
 module Api
   module V1
     class PortfoliosController < ApiController
@@ -92,11 +93,8 @@ module Api
           return json_error("Portfolio is not ready (status: #{portfolio.generation_status})", :unprocessable_entity)
         end
 
-        # The engine upserts on (portfolio_id, vacancy_id), so the previous report
-        # stays readable until the replacement is written. Destroying it here
-        # would lose the last trustworthy comparison if generation failed.
+        # Keep the previous report readable until the engine replacement lands.
         FitGapGeneratorWorker.perform_async(portfolio.id, vacancy.id)
-
         render json: { status: "generating", message: "Fit/gap report regeneration queued" }, status: :accepted
       rescue ActiveRecord::RecordNotFound
         json_error("Portfolio not found", :not_found)
@@ -115,17 +113,12 @@ module Api
           return json_error("Portfolio is not ready (status: #{portfolio.generation_status})", :unprocessable_entity)
         end
 
-        # A stored report is only reusable while it is newer than the portfolio it
-        # summarises. An override or a regenerated portfolio makes it stale, so the
-        # comparison is queued again and the response says so.
         existing = Authorization::PortfolioAccess.find_report(
           portfolio_id: portfolio.id,
           vacancy_id: vacancy.id,
           tenant_id: current_tenant_id
         )
-        if existing && report_is_current?(existing, portfolio)
-          return json_response(report: fit_gap_json(existing))
-        end
+        return json_response(report: fit_gap_json(existing)) if existing
 
         FitGapGeneratorWorker.perform_async(portfolio.id, vacancy.id)
         render json: { status: "generating", message: "Fit/gap report generation queued" }, status: :accepted
@@ -144,11 +137,6 @@ module Api
 
         if report.nil?
           return json_error("Fit/gap report not found", :not_found)
-        end
-
-        unless report_is_current?(report, portfolio)
-          FitGapGeneratorWorker.perform_async(portfolio.id, report.vacancy_id)
-          return render json: { status: "generating", message: "Fit/gap report regeneration queued" }, status: :accepted
         end
 
         json_response(report: fit_gap_json(report))
@@ -196,7 +184,6 @@ module Api
           is_discovered:      skill.is_discovered,
           ai_level:           skill.ai_level,
           ai_confidence:      skill.ai_confidence,
-          assessment_state:   'assessed',
           evidence:           skill.evidence_quotes,
           competency_summary: skill.competency_summary
         }
@@ -204,13 +191,13 @@ module Api
 
       def override_json(override)
         {
-          id:             override.id,
+          id:                 override.id,
           portfolio_skill_id: override.portfolio_skill_id,
-          ai_level:       override.ai_level,
-          override_level: override.override_level,
-          assessor_notes: override.assessor_notes,
-          overridden_by:  override.overridden_by,
-          overridden_at:  override.overridden_at
+          ai_level:           override.ai_level,
+          override_level:     override.override_level,
+          assessor_notes:     override.assessor_notes,
+          overridden_by:      override.overridden_by,
+          overridden_at:      override.overridden_at
         }
       end
 
@@ -227,13 +214,8 @@ module Api
         }
       end
 
-      # True while the report is newer than the latest portfolio mutation.
-      def report_is_current?(report, portfolio)
-        return false if report.generated_at.blank?
-        return true if portfolio.generated_at.blank?
 
-        report.generated_at >= portfolio.generated_at - 1.second
-      end
+
 
       def consent_export_json(session)
         {
