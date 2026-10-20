@@ -5,7 +5,7 @@ import VacancyListPage from "@/pages/vacancies/VacancyListPage";
 import { vacanciesApi } from "@/services/vacancies";
 
 vi.mock("@/services/vacancies", () => ({
-    vacanciesApi: { list: vi.fn() },
+    vacanciesApi: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn() },
 }));
 
 const VACANCIES = [
@@ -44,7 +44,7 @@ function deferred<T>() {
 
 describe("VacancyListPage states", () => {
     beforeEach(() => {
-        vi.clearAllMocks();
+        vi.resetAllMocks();
     });
 
     it("hides rows while the request is pending, then renders the loaded vacancies", async () => {
@@ -75,7 +75,7 @@ describe("VacancyListPage states", () => {
 
         fireEvent.click(screen.getByRole("button", { name: /Create your first vacancy/ }));
 
-        expect(await screen.findByText("New vacancy form")).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Create vacancy" })).toBeInTheDocument();
     });
 
     it("reports a load failure instead of showing the empty state", async () => {
@@ -91,11 +91,12 @@ describe("VacancyListPage states", () => {
 
     it("opens the edit route for the vacancy the user picks", async () => {
         vi.mocked(vacanciesApi.list).mockResolvedValue(listResponse());
+        vi.mocked(vacanciesApi.get).mockResolvedValue({ data: { vacancy: { ...VACANCIES[1], skills: [] } } } as never);
 
         renderPage();
 
-        fireEvent.click(await screen.findByText("Product Designer"));
-
-        expect(await screen.findByText("Editing vacancy 5")).toBeInTheDocument();
+        await screen.findByText("Product Designer");
+        fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[1]);
+        expect(await screen.findByRole("heading", { name: "Edit vacancy" })).toBeInTheDocument();
     });
 });

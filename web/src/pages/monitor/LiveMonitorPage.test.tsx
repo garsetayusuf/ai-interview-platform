@@ -88,7 +88,7 @@ function mockCoverage(coverageMap: CoverageMap | null) {
 }
 
 beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     mockCoverage({ skills: [], discovered: [] });
 });
 
@@ -107,7 +107,7 @@ describe("LiveMonitorPage failure handling", () => {
 
         fireEvent.click(screen.getByRole("button", { name: /Retry/ }));
 
-        expect(await screen.findByText("Backend Screen")).toBeInTheDocument();
+        expect(await screen.findByText("Live monitor")).toBeInTheDocument();
     });
 
     it("announces a stalled transcript poll without dropping the turns it already has", async () => {
@@ -174,7 +174,7 @@ describe("LiveMonitorPage live view", () => {
             transcript.resolve({ data: { turns: TURNS } } as never);
         });
 
-        expect(screen.getByText("Backend Screen")).toBeInTheDocument();
+        expect(screen.getByText("Live monitor")).toBeInTheDocument();
         expect(screen.getByText("Coverage Status")).toBeInTheDocument();
         expect(screen.getByRole("log")).toHaveTextContent("Tell me about your last project.");
     });
@@ -221,16 +221,16 @@ describe("LiveMonitorPage live view", () => {
 
         expect(await screen.findByText("System Design")).toBeInTheDocument();
         expect(screen.getByText("Testing")).toBeInTheDocument();
-        expect(screen.getByText("partial")).toBeInTheDocument();
+        expect(screen.getByText(/partial/)).toBeInTheDocument();
         expect(screen.getByText("not yet")).toBeInTheDocument();
-        expect(screen.getByText("2 probes")).toBeInTheDocument();
+        expect(screen.getByText(/2 probes/)).toBeInTheDocument();
         expect(screen.queryByText(/0 probes/)).not.toBeInTheDocument();
         expect(screen.getByText('"sharding"')).toBeInTheDocument();
 
         expect(screen.getByText("Discovered")).toBeInTheDocument();
         expect(screen.getByText("Observability")).toBeInTheDocument();
-        expect(screen.getByText("initiated")).toBeInTheDocument();
-        expect(screen.getByText("1 probe")).toBeInTheDocument();
+        expect(screen.getByText(/initiated/)).toBeInTheDocument();
+        expect(screen.getByText(/1 probe/)).toBeInTheDocument();
 
         expect(screen.queryByText("Waiting for interview to begin...")).not.toBeInTheDocument();
     });
@@ -243,7 +243,7 @@ describe("LiveMonitorPage live view", () => {
 
         expect(await screen.findByText("Waiting for interview to begin...")).toBeInTheDocument();
         expect(screen.getByText("No transcript yet.")).toBeInTheDocument();
-        expect(screen.queryByText("Discovered")).not.toBeInTheDocument();
+        expect(screen.getByText("Discovered")).toBeInTheDocument();
         expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 });

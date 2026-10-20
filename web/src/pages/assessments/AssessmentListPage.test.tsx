@@ -36,7 +36,7 @@ const ASSESSMENTS: Assessment[] = [
 ];
 
 async function renderList() {
-    vi.mocked(assessmentsApi.list).mockResolvedValue({ data: { assessments: ASSESSMENTS } } as never);
+    vi.mocked(assessmentsApi.list).mockResolvedValue({ data: { assessments: ASSESSMENTS, meta: { current_page: 1, total_pages: 1, total_count: ASSESSMENTS.length, per_page: 20 } } } as never);
     render(
         <MemoryRouter>
             <Routes>
@@ -49,7 +49,7 @@ async function renderList() {
 
 describe("AssessmentListPage", () => {
     beforeEach(() => {
-        vi.clearAllMocks();
+        vi.resetAllMocks();
     });
 
     it("opens an assessment with Enter", async () => {

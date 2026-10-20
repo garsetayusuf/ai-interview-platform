@@ -86,4 +86,18 @@ RSpec.describe 'Assessment configuration API', type: :request do
     expect(response).to have_http_status(:unprocessable_entity)
     expect(error_message).to eq('Skill id is too long (maximum is 50 characters)')
   end
+  it 'filters the assessment index by search and live status without leaving the tenant' do
+    create(:assessment, organization: organization, name: 'Frontend Screen')
+    live = create(:assessment, organization: organization, name: 'Live Backend Screen')
+    create(:session, organization: organization, assessment: live, status: 'active')
+
+    get '/api/v1/assessments',
+        params: { search: 'Live', status: 'live' },
+        headers: headers
+
+    expect(response).to have_http_status(:ok)
+    body = JSON.parse(response.body)
+    expect(body.fetch('assessments').map { |item| item.fetch('name') }).to eq(['Live Backend Screen'])
+    expect(body.fetch('meta').fetch('total_count')).to eq(1)
+  end
 end

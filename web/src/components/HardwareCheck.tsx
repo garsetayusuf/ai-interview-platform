@@ -9,7 +9,8 @@ import {
     getCurrentTime,
 } from "@/utils/hardwareUtils";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, CheckCircle, XCircle, Loader2, Circle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { RefreshCw, CheckCircle, XCircle, Loader2, Circle, ShieldCheck } from "lucide-react";
 
 interface HardwareCheckProps {
     onStart?: () => void;
@@ -259,7 +260,12 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
     const isChecking = Object.values(progress).some((s) => s === ProctoringState.LOADING);
 
     return (
-        <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-primary/15 bg-card shadow-lg">
+            <div className="border-b border-border/70 bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-5 sm:p-6">
+                <Badge variant="outline" className="border-primary/20 bg-primary/5 text-primary"><ShieldCheck className="mr-1.5 h-3.5 w-3.5" />Device readiness</Badge>
+                <h2 className="mt-3 text-xl font-semibold tracking-tight">Check your setup</h2>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">We’ll verify your browser, connection, microphone, and audio before the interview begins.</p>
+            </div>
             {/* Camera preview */}
             {REQUIRE_CAMERA && <div className="relative bg-black aspect-video">
                 {videoStream ? (
@@ -283,7 +289,7 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
             {/* Checklist */}
             <div className="divide-y">
                 {rows.map(({ key, label }) => (
-                    <div key={key} className="px-4 py-3" data-testid={`row-${key}`}>
+                    <div key={key} className="px-5 py-4 sm:px-6" data-testid={`row-${key}`}>
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-medium">{label}</span>
                             <div className="flex items-center gap-2">
@@ -329,7 +335,7 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
             </div>
 
             {/* Footer */}
-            <div className="px-4 py-3 border-t flex items-center justify-between gap-3 bg-muted/30">
+            <div className="flex flex-col items-stretch justify-center gap-3 border-t bg-muted/30 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 {!allPassed && (
                     <Button
                         variant="outline"
@@ -344,7 +350,7 @@ const HardwareCheck: React.FC<HardwareCheckProps> = ({ onStart }) => {
                 )}
                 <Button
                     size="sm"
-                    className="ml-auto"
+                    className="w-full sm:ml-auto sm:w-auto"
                     disabled={!allPassed}
                     onClick={onStart}
                     data-testid="hardware-start"

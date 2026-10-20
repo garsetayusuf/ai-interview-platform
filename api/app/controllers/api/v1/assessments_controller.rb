@@ -9,9 +9,7 @@ module Api
 
       # GET /api/v1/assessments
       def index
-        assessments = paginate(
-          Assessment.includes(:sessions).order(created_at: :desc)
-        )
+        assessments = paginate(filtered_assessments)
 
         json_response(
           assessments: assessments.map(&method(:assessment_json)),
@@ -54,6 +52,28 @@ module Api
       end
 
       private
+
+      def filtered_assessments
+        scope = Assessment.includes(:sessions).order(created_at: :desc)
+        search = query_params[:search].to_s.strip
+        status = query_params[:status].to_s
+
+        if search.present?
+          escaped = ActiveRecord::Base.sanitize_sql_like(search)
+          scope = scope.where("assessments.name ILIKE ?", "%#{escaped}%")
+        end
+
+        case status
+        when "live"
+          scope.joins(:sessions).where(sessions: { status: "active" }).distinct
+        when "completed"
+          scope.joins(:sessions).where(sessions: { status: "ended" }).where.not(sessions: { end_reason: "error" }).distinct
+        when "awaiting"
+          scope.joins(:sessions).where(sessions: { status: "pending" }).distinct
+        else
+          scope
+        end
+      end
 
       def set_assessment
         @assessment = Assessment.find(params[:id])

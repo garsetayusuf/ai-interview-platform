@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -22,7 +24,7 @@ import { useAudioWebSocket } from "@/hooks/useAudioWebSocket";
 import { sessionsApi } from "@/services/sessions";
 import HardwareCheck from "@/components/HardwareCheck";
 import ConsentGate from "@/components/consent/ConsentGate";
-import { CheckCircle, Mic, MicOff } from "lucide-react";
+import { CheckCircle, CheckCircle2, Clock3, Mic, MicOff, ShieldCheck } from "lucide-react";
 import { httpStatus } from "@/lib/httpError";
 import type {
   CandidateInfo,
@@ -400,14 +402,38 @@ export default function InterviewPage() {
   // ── State F: Complete ───────────────────────────────────────────────────
   if (interviewState === "complete") {
     return (
-      <div className="max-w-xl mx-auto px-4 py-16 text-center space-y-4">
-        <div className="text-4xl">✅</div>
-        <h2 className="text-xl font-semibold">Interview Complete</h2>
-        <p className="text-sm text-muted-foreground">
-          Thank you. The interview has been recorded.
-          <br />
-          The hiring team will review your results and follow up with you.
-        </p>
+      <div className="flex flex-1 items-center justify-center px-4 py-10 sm:px-6 sm:py-16">
+        <Card className="w-full max-w-2xl overflow-hidden rounded-3xl border-primary/15 shadow-xl">
+          <div className="h-2 bg-primary" />
+          <CardContent className="p-6 text-center sm:p-10">
+            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-primary/10 text-primary">
+              <CheckCircle2 className="h-9 w-9" />
+            </div>
+            <Badge variant="outline" className="mt-6 border-primary/20 bg-primary/5 text-primary">
+              Interview recorded
+            </Badge>
+            <h2 className="mt-4 text-2xl font-semibold tracking-tight sm:text-3xl">Interview Complete</h2>
+            <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-muted-foreground">
+              Thank you for sharing your experience. Your interview has been securely recorded and the hiring team will review it.
+            </p>
+
+            <div className="mt-8 grid gap-3 text-left sm:grid-cols-2">
+              <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground"><ShieldCheck className="h-4 w-4 text-primary" /> Session status</div>
+                <p className="mt-2 font-medium">Successfully submitted</p>
+              </div>
+              <div className="rounded-2xl border border-border/70 bg-muted/30 p-4">
+                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground"><Clock3 className="h-4 w-4 text-primary" /> Interview length</div>
+                <p className="mt-2 font-medium">{candidateInfo?.time_limit_min ? `Up to ${candidateInfo.time_limit_min} minutes` : "Session complete"}</p>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-2xl bg-primary/5 p-5 text-left">
+              <p className="font-medium">What happens next?</p>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">The hiring team will review your responses and follow up with you directly about next steps.</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

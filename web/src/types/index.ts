@@ -118,6 +118,7 @@ export interface Vacancy {
   created_by?: number;
   created_at?: string;
   updated_at?: string;
+  skill_count?: number;
   skills: VacancySkill[];
 }
 

@@ -9,7 +9,7 @@ module Api
 
       # GET /api/v1/vacancies
       def index
-        vacancies = paginate(Vacancy.order(created_at: :desc))
+        vacancies = paginate(filtered_vacancies)
 
         json_response(
           vacancies: vacancies.map(&method(:vacancy_json)),
@@ -52,6 +52,18 @@ module Api
 
       private
 
+      def filtered_vacancies
+        scope = Vacancy.includes(:vacancy_skills).order(created_at: :desc)
+        search = query_params[:search].to_s.strip
+
+        if search.present?
+          escaped = ActiveRecord::Base.sanitize_sql_like(search)
+          scope = scope.where("vacancies.role_title ILIKE ?", "%#{escaped}%")
+        end
+
+        scope
+      end
+
       def invalidate_fit_gap_reports
         @vacancy.fit_gap_reports.pluck(:portfolio_id).each do |portfolio_id|
           FitGapGeneratorWorker.perform_async(portfolio_id, @vacancy.id)
@@ -83,7 +95,8 @@ module Api
           competency_expectations:  vacancy.competency_expectations,
           created_by:               vacancy.created_by,
           created_at:               vacancy.created_at,
-          updated_at:               vacancy.updated_at
+          updated_at:               vacancy.updated_at,
+          skill_count:              vacancy.vacancy_skills.size
         }
       end
 

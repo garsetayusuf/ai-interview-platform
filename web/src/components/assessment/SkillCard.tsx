@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import LevelRadio from "./LevelRadio";
 import CustomSkillForm from "./CustomSkillForm";
 import { cn } from "@/lib/utils";
-import type { AssessmentFormValues } from "@/pages/assessments/AssessmentNewPage";
+import type { AssessmentFormValues } from "./AssessmentFormDialog";
 
 interface SkillCardProps {
   index: number;

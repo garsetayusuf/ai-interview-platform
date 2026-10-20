@@ -3,7 +3,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import LevelRadio from "./LevelRadio";
-import type { AssessmentFormValues } from "@/pages/assessments/AssessmentNewPage";
+import type { AssessmentFormValues } from "./AssessmentFormDialog";
 
 interface CustomSkillFormProps {
   index: number;

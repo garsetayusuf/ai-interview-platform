@@ -4,11 +4,11 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import AssessmentInvitePage from "@/pages/assessments/AssessmentInvitePage";
 import { assessmentsApi } from "@/services/assessments";
 import type { Session } from "@/types";
-
+import { showRequestError } from "@/lib/requestToast";
 vi.mock("@/services/assessments", () => ({
     assessmentsApi: { get: vi.fn(), getSessions: vi.fn(), createSession: vi.fn() },
 }));
-
+vi.mock("@/lib/requestToast", () => ({ showRequestError: vi.fn() }));
 const ASSESSMENT = {
     id: 2,
     name: "Backend Screen",
@@ -42,7 +42,7 @@ async function openInviteDialog() {
 
 describe("AssessmentInvitePage failure handling", () => {
     beforeEach(() => {
-        vi.clearAllMocks();
+        vi.resetAllMocks();
         vi.mocked(assessmentsApi.get).mockResolvedValue({ data: { assessment: ASSESSMENT } } as never);
         vi.mocked(assessmentsApi.getSessions).mockResolvedValue({ data: { sessions: [] } } as never);
     });
@@ -74,7 +74,10 @@ describe("AssessmentInvitePage failure handling", () => {
         fireEvent.click(within(dialog).getByRole("button", { name: "Create Link" }));
 
         await waitFor(() =>
-            expect(screen.getByRole("alert")).toHaveTextContent("Candidate name is too long")
+            expect(showRequestError).toHaveBeenCalledWith(
+                expect.objectContaining({ response: expect.any(Object) }),
+                "Couldn’t create the invite link. Please try again."
+            )
         );
         expect(screen.getByRole("dialog")).toBeInTheDocument();
         expect(screen.getByDisplayValue("Budi")).toBeInTheDocument();

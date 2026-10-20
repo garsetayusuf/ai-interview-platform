@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
@@ -14,9 +16,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { assessmentsApi } from "@/services/assessments";
-import { apiErrorMessage } from "@/lib/httpError";
+import AssessmentFormDialog from "@/components/assessment/AssessmentFormDialog";
+import MetricStrip from "@/components/workspace/MetricStrip";
+import { showRequestError } from "@/lib/requestToast";
 import { LEVEL_LABELS } from "@/utils/constants";
-import { ArrowLeft, Copy, Check, Eye, Pencil, Clock, Plus, RefreshCw, UserRound } from "lucide-react";
+import { ArrowLeft, BarChart3, Check, CheckCircle2, CircleAlert, Clock, Copy, Eye, Pencil, Plus, Radio, RefreshCw, UserRound } from "lucide-react";
 import type { Assessment, Session } from "@/types";
 
 function SessionRow({
@@ -149,13 +153,15 @@ export default function AssessmentInvitePage() {
   const [copiedId, setCopiedId] = useState<number | null>(null);
   const [newSessionCopied, setNewSessionCopied] = useState(false);
   const [copyFailureUrl, setCopyFailureUrl] = useState<string | null>(null);
-  const [inviteError, setInviteError] = useState<string | null>(null);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
   const [candidateNameInput, setCandidateNameInput] = useState("");
   const inviteUrlRef = useRef<HTMLSpanElement>(null);
+  const pollErrorNotifiedRef = useRef(false);
 
   const loadSessions = useCallback(async () => {
     const res = await assessmentsApi.getSessions(Number(id));
+    pollErrorNotifiedRef.current = false;
     setSessions(res.data.sessions);
   }, [id]);
 
@@ -169,7 +175,10 @@ export default function AssessmentInvitePage() {
         setAssessment(aRes.data.assessment);
         setSessions(sRes.data.sessions);
       })
-      .catch(() => setLoadError(true))
+      .catch((error) => {
+        setLoadError(true);
+        showRequestError(error, "Couldn’t load this assessment.");
+      })
       .finally(() => setLoading(false));
   }, [id, retryCount]);
 
@@ -178,8 +187,11 @@ export default function AssessmentInvitePage() {
     const hasActive = sessions.some((s) => s.status !== "ended");
     if (!hasActive) return;
     const interval = setInterval(() => {
-      loadSessions().catch(() => {
-        // A failed poll must not blank the list; the next tick retries.
+      loadSessions().catch((error) => {
+        if (!pollErrorNotifiedRef.current) {
+          showRequestError(error, "Session updates are temporarily unavailable.");
+          pollErrorNotifiedRef.current = true;
+        }
       });
     }, 5000);
     return () => clearInterval(interval);
@@ -187,13 +199,11 @@ export default function AssessmentInvitePage() {
 
   const openInviteDialog = () => {
     setCandidateNameInput("");
-    setInviteError(null);
     setShowInviteDialog(true);
   };
 
   const handleInviteCandidate = async () => {
     setCreatingSession(true);
-    setInviteError(null);
     setNewSession(null);
     try {
       const res = await assessmentsApi.createSession(Number(id), candidateNameInput.trim() || undefined);
@@ -201,9 +211,8 @@ export default function AssessmentInvitePage() {
       setNewSession(created);
       setSessions((prev) => [created, ...prev]);
       setShowInviteDialog(false);
-    } catch (e) {
-      // Keep the dialog open so the input is not lost, and say what failed.
-      setInviteError(apiErrorMessage(e, "Could not create the invite link. Please try again."));
+    } catch (error) {
+      showRequestError(error, "Couldn’t create the invite link. Please try again.");
     } finally {
       setCreatingSession(false);
     }
@@ -264,7 +273,7 @@ export default function AssessmentInvitePage() {
 
   if (loadError) {
     return (
-      <div className="max-w-2xl mx-auto space-y-4">
+      <div className="mx-auto max-w-5xl space-y-4">
         <div className="flex flex-wrap items-center gap-2">
           <Link to="/assessments" aria-label="Back to assessments" className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
@@ -281,26 +290,30 @@ export default function AssessmentInvitePage() {
       </div>
     );
   }
+  const liveCount = sessions.filter((session) => session.status === "active").length;
+  const completedCount = sessions.filter((session) => session.status === "ended" && session.end_reason !== "error").length;
+  const failedCount = sessions.filter((session) => session.status === "ended" && session.end_reason === "error").length;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="mx-auto max-w-5xl space-y-7">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <Link to="/assessments" aria-label="Back to assessments" className="text-muted-foreground hover:text-foreground">
+      <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+        <div className="flex items-start justify-center gap-2 text-center min-w-0 sm:justify-start sm:text-left">
+          <Link to="/assessments" aria-label="Back to assessments" className="mt-1 grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
           </Link>
           <div className="min-w-0">
-            <h1 className="text-lg font-semibold truncate">{assessment?.name ?? "—"}</h1>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5">
-              <Clock className="h-3 w-3" />
-              {assessment?.time_limit_min} min · {assessment?.skills?.length ?? 0} skills
+            <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">{assessment?.name ?? "—"}</h1>
+            <div className="mt-2 flex flex-wrap items-center justify-center gap-3 text-sm text-muted-foreground sm:justify-start">
+              <span className="inline-flex items-center gap-1.5"><Clock className="h-4 w-4" />{assessment?.time_limit_min} min</span>
+              <span>{assessment?.skills?.length ?? 0} skills</span>
+              <span>{sessions.length} candidates</span>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/assessments/${id}/edit`)}>
+        <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
+          <Button variant="outline" size="sm" onClick={() => setShowEditDialog(true)}>
             <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit
           </Button>
           <Button size="sm" onClick={openInviteDialog} disabled={creatingSession}>
@@ -309,6 +322,12 @@ export default function AssessmentInvitePage() {
           </Button>
         </div>
       </div>
+      <MetricStrip items={[
+        { label: "Candidates", value: sessions.length, icon: BarChart3 },
+        { label: "Live now", value: liveCount, icon: Radio, className: "text-primary" },
+        { label: "Completed", value: completedCount, icon: CheckCircle2, className: "text-primary" },
+        { label: "Failed", value: failedCount, icon: CircleAlert, className: failedCount > 0 ? "text-destructive" : "text-muted-foreground" },
+      ]} />
 
       {/* Invite candidate dialog */}
       <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
@@ -327,22 +346,26 @@ export default function AssessmentInvitePage() {
               autoFocus
             />
             <p className="text-xs text-muted-foreground">Optional — helps you identify this session later.</p>
-            {inviteError && (
-              <p className="text-xs text-destructive" role="alert">{inviteError}</p>
-            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowInviteDialog(false)}>Cancel</Button>
+            <DialogClose asChild><Button variant="outline">Cancel</Button></DialogClose>
             <Button onClick={handleInviteCandidate} disabled={creatingSession}>
               {creatingSession ? "Creating..." : "Create Link"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AssessmentFormDialog
+        mode="edit"
+        assessmentId={Number(id)}
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+        onSaved={(updated) => setAssessment(updated)}
+      />
 
       {/* Newly created session invite link */}
       {newSession && (
-        <Card className="border-primary/30 bg-primary/5">
+        <Card className="rounded-2xl border-primary/20 bg-primary/5 shadow-sm">
           <CardContent className="pt-4 space-y-2">
             <p className="text-sm font-medium">
               {newSession.candidate_name
@@ -407,7 +430,7 @@ export default function AssessmentInvitePage() {
             </div>
           </div>
         ) : (
-          <Card>
+          <Card className="rounded-2xl border-border/80 shadow-sm">
             <CardContent className="p-0 divide-y">
               {sessions.map((session, i) => (
                 <SessionRow
@@ -431,8 +454,8 @@ export default function AssessmentInvitePage() {
       {assessment?.skills && assessment.skills.length > 0 && (
         <>
           <Separator />
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold">Skills assessed</h2>
+          <div className="rounded-2xl border border-border/80 bg-card p-5 shadow-sm sm:p-6">
+            <h2 className="text-xl font-semibold">Skills assessed</h2>
             <ul className="space-y-1">
               {assessment.skills.map((s) => (
                 <li key={s.id ?? s.skill_label} className="flex items-center gap-2 text-sm text-muted-foreground">

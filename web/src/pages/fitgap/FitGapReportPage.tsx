@@ -9,6 +9,8 @@ import ComparisonTable from "@/components/fitgap/ComparisonTable";
 import { portfoliosApi } from "@/services/portfolios";
 import { sessionsApi } from "@/services/sessions";
 import { usePolling } from "@/hooks/usePolling";
+import { showRequestError } from "@/lib/requestToast";
+import { LEVEL_LABELS } from "@/utils/constants";
 import {
   AlertCircle,
   ArrowLeft,
@@ -90,16 +92,18 @@ export default function FitGapReportPage() {
         try {
           await portfoliosApi.triggerFitGap(portfolio.id, Number(vacancyId));
           setGenerating(true);
-        } catch {
+        } catch (error) {
           queuedRef.current = false;
           setGenerating(false);
           setGenerationError("Couldn’t start the fit/gap report.");
+          showRequestError(error, "Couldn’t start the fit/gap report.");
         }
         return;
       }
 
       setGenerating(false);
       setGenerationError("Couldn’t load the fit/gap report.");
+      showRequestError(error, "Couldn’t load the fit/gap report.");
     }
   }, [portfolio, vacancyId]);
 
@@ -110,7 +114,10 @@ export default function FitGapReportPage() {
         const data = res.data as any;
         if (data.portfolio) setPortfolio(data.portfolio);
       })
-      .catch(() => setGenerationError("Couldn’t load the portfolio."))
+      .catch((error) => {
+        setGenerationError("Couldn’t load the portfolio.");
+        showRequestError(error, "Couldn’t load the portfolio.");
+      })
       .finally(() => setLoading(false));
   }, [sessionId]);
 
@@ -129,8 +136,9 @@ export default function FitGapReportPage() {
       queuedRef.current = true;
       setReport(null);
       setGenerating(true);
-    } catch {
+    } catch (error) {
       setGenerationError("Couldn’t start report regeneration.");
+      showRequestError(error, "Couldn’t start report regeneration.");
     } finally {
       setRegenerating(false);
     }
@@ -151,6 +159,8 @@ export default function FitGapReportPage() {
       a.download = `fitgap-${sessionId}-${vacancyId}.${format}`;
       a.click();
       URL.revokeObjectURL(url);
+    } catch (error) {
+      showRequestError(error, `Couldn’t export ${format.toUpperCase()} report.`);
     } finally {
       setExporting(null);
     }
@@ -203,7 +213,7 @@ export default function FitGapReportPage() {
         </div>
 
         {portfolio && (
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+          <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
             <Button variant="outline" className="h-10" onClick={handleRegenerate} disabled={regenerating || generating}>
               {regenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Regenerate
@@ -309,7 +319,7 @@ export default function FitGapReportPage() {
                   <div key={skill.id} className="rounded-xl border border-border/70 bg-muted/30 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <p className="font-medium">{skill.skill_label}</p>
-                      <Badge variant="secondary">{skill.ai_level}</Badge>
+                      <Badge variant="secondary">{LEVEL_LABELS[skill.ai_level] ?? `L${skill.ai_level}`}</Badge>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
                       {skill.ai_confidence?.toLowerCase() === "low" ? "Low confidence" : "Confirmed by interview evidence"}

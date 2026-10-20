@@ -85,7 +85,7 @@ export default function AssessorLayout() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-10 w-10 rounded-full bg-secondary/35 text-secondary-foreground hover:bg-secondary/50"
+                  className="hidden h-10 w-10 rounded-full bg-secondary/35 text-secondary-foreground hover:bg-secondary/50 sm:inline-flex"
                   aria-label="Open account menu"
                 >
                   <span className="text-sm font-semibold">{tenantInitial}</span>

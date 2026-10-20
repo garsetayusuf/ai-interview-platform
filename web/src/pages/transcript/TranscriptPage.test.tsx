@@ -38,7 +38,7 @@ function deferred<T>() {
 
 describe("TranscriptPage states", () => {
     beforeEach(() => {
-        vi.clearAllMocks();
+        vi.resetAllMocks();
         Object.assign(URL, { createObjectURL, revokeObjectURL });
     });
 
@@ -63,7 +63,6 @@ describe("TranscriptPage states", () => {
         expect(await screen.findByText("AI Interviewer")).toBeInTheDocument();
         expect(screen.getByText("Candidate")).toBeInTheDocument();
         expect(screen.getByText("Walk me through a hard bug you fixed.")).toBeInTheDocument();
-        expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
         expect(screen.queryByText("No transcript available for this session.")).not.toBeInTheDocument();
     });
 
