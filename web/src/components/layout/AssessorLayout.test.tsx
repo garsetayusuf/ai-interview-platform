@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
@@ -85,11 +86,13 @@ describe("AssessorLayout", () => {
         expect(screen.getByText("Tenant: Acme Assessments")).toBeInTheDocument();
     });
 
-    it("clears the stored token and leaves the assessor area on logout", () => {
+    it("clears the stored token and leaves the assessor area on logout", async () => {
         localStorage.setItem("auth_token", "stored.jwt.token");
         renderLayout("/assessments");
 
-        fireEvent.click(screen.getByRole("button", { name: "Logout" }));
+        const user = userEvent.setup();
+        await user.click(screen.getByRole("button", { name: "Open account menu" }));
+        await user.click(await screen.findByRole("menuitem", { name: "Logout" }));
 
         expect(localStorage.getItem("auth_token")).toBeNull();
         expect(screen.getByText("Login screen")).toBeInTheDocument();
